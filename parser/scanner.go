@@ -16,7 +16,7 @@ const (
 	tokOutdent
 	tokBlank
 	tokId
-	tokClassName
+	tokClass
 	tokTag
 	tokText
 	tokAttribute
@@ -341,7 +341,7 @@ var rgxClassName = regexp.MustCompile(`^\.([\w-]+)(?:\s*\?\s*(.*)$)?`)
 func (s *scanner) scanClassName() *token {
 	if sm := rgxClassName.FindStringSubmatch(s.buffer); len(sm) != 0 {
 		s.consume(len(sm[0]))
-		return &token{tokClassName, sm[1], map[string]string{"Condition": sm[2]}}
+		return &token{tokClass, sm[1], map[string]string{"Condition": sm[2]}}
 	}
 
 	return nil

@@ -204,7 +204,7 @@ func (p *Parser) parseBlock(parent Node) *Block {
 		}
 
 		if p.currenttoken.Kind == tokId ||
-			p.currenttoken.Kind == tokClassName ||
+			p.currenttoken.Kind == tokClass ||
 			p.currenttoken.Kind == tokAttribute {
 
 			if tag, ok := parent.(*Tag); ok {
@@ -214,7 +214,7 @@ func (p *Parser) parseBlock(parent Node) *Block {
 				switch attr.Kind {
 				case tokId:
 					tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "id", attr.Value, true, cond})
-				case tokClassName:
+				case tokClass:
 					tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "class", attr.Value, true, cond})
 				case tokAttribute:
 					tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], attr.Data["Mode"] == "raw", cond})
@@ -377,8 +377,8 @@ readmore:
 		}
 		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "id", id.Value, true, ""})
 		goto readmore
-	case tokClassName:
-		cls := p.expect(tokClassName)
+	case tokClass:
+		cls := p.expect(tokClass)
 		if len(cls.Data["Condition"]) > 0 {
 			panic("Conditional attributes must be placed in a block within a tag.")
 		}
