@@ -35,6 +35,12 @@ const (
 	scnEOF
 )
 
+type token struct {
+	Kind  rune
+	Value string
+	Data  map[string]string
+}
+
 type scanner struct {
 	reader  *bufio.Reader
 	indents *list.List
@@ -50,12 +56,6 @@ type scanner struct {
 	lastTokenSize int
 
 	readRaw bool
-}
-
-type token struct {
-	Kind  rune
-	Value string
-	Data  map[string]string
 }
 
 func newScanner(r io.Reader) *scanner {
@@ -74,8 +74,8 @@ func (s *scanner) Pos() SourcePosition {
 	return SourcePosition{
 		Line:        s.lastTokenLine + 1,
 		Column:      s.lastTokenCol + 1,
-		TokenLength: s.lastTokenSize,
 		Filename:    "",
+		TokenLength: s.lastTokenSize,
 	}
 }
 

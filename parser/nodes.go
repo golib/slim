@@ -32,8 +32,8 @@ type Node interface {
 type SourcePosition struct {
 	Line        int
 	Column      int
-	TokenLength int
 	Filename    string
+	TokenLength int
 }
 
 func (s *SourcePosition) Pos() SourcePosition {
