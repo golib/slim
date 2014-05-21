@@ -36,9 +36,9 @@ const (
 )
 
 type scanner struct {
-	reader      *bufio.Reader
-	indentStack *list.List
-	stash       *list.List
+	reader  *bufio.Reader
+	indents *list.List
+	stash   *list.List
 
 	state  int32
 	buffer string
@@ -61,7 +61,7 @@ type token struct {
 func newScanner(r io.Reader) *scanner {
 	s := new(scanner)
 	s.reader = bufio.NewReader(r)
-	s.indentStack = list.New()
+	s.indents = list.New()
 	s.stash = list.New()
 	s.state = scnNewLine
 	s.line = -1
@@ -90,8 +90,8 @@ func (s *scanner) Next() *token {
 
 	switch s.state {
 	case scnEOF:
-		if outdent := s.indentStack.Back(); outdent != nil {
-			s.indentStack.Remove(outdent)
+		if outdent := s.indents.Back(); outdent != nil {
+			s.indents.Remove(outdent)
 			return &token{tokOutdent, "", nil}
 		}
 
@@ -217,7 +217,7 @@ func (s *scanner) scanIndent() *token {
 	}
 
 	var head *list.Element
-	for head = s.indentStack.Front(); head != nil; head = head.Next() {
+	for head = s.indents.Front(); head != nil; head = head.Next() {
 		value := head.Value.(*regexp.Regexp)
 
 		if match := value.FindString(s.buffer); len(match) != 0 {
@@ -230,7 +230,7 @@ func (s *scanner) scanIndent() *token {
 	newIndent := rgxIndent.FindString(s.buffer)
 
 	if len(newIndent) != 0 && head == nil {
-		s.indentStack.PushBack(regexp.MustCompile(regexp.QuoteMeta(newIndent)))
+		s.indents.PushBack(regexp.MustCompile(regexp.QuoteMeta(newIndent)))
 		s.consume(len(newIndent))
 		return &token{tokIndent, newIndent, nil}
 	}
@@ -238,7 +238,7 @@ func (s *scanner) scanIndent() *token {
 	if len(newIndent) == 0 && head != nil {
 		for head != nil {
 			next := head.Next()
-			s.indentStack.Remove(head)
+			s.indents.Remove(head)
 			if next == nil {
 				return &token{tokOutdent, "", nil}
 			} else {
