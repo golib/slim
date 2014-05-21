@@ -154,7 +154,7 @@ func (p *Parser) parse() Node {
 		return p.parseAssignment()
 	case tokNamedBlock:
 		return p.parseNamedBlock()
-	case tokExtends:
+	case tokExtend:
 		return p.parseExtends()
 	case tokIndent:
 		return p.parseBlock(nil)
@@ -181,7 +181,7 @@ func (p *Parser) parseExtends() *Block {
 		panic("Unable to extend multiple parent templates.")
 	}
 
-	tok := p.expect(tokExtends)
+	tok := p.expect(tokExtend)
 	parser := p.parseRelativeFile(tok.Value)
 	parser.Parse()
 	p.parent = parser

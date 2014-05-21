@@ -21,12 +21,13 @@ const (
 	tokText
 	tokAttribute
 	tokIf
+	tokElseIf
 	tokElse
 	tokEach
 	tokAssignment
 	tokImport
 	tokNamedBlock
-	tokExtends
+	tokExtend
 )
 
 const (
@@ -126,7 +127,7 @@ func (s *scanner) Next() *token {
 			return tok
 		}
 
-		if tok := s.scanExtends(); tok != nil {
+		if tok := s.scanExtend(); tok != nil {
 			return tok
 		}
 
@@ -146,7 +147,7 @@ func (s *scanner) Next() *token {
 			return tok
 		}
 
-		if tok := s.scanClassName(); tok != nil {
+		if tok := s.scanClass(); tok != nil {
 			return tok
 		}
 
@@ -214,7 +215,7 @@ func (s *scanner) NextRaw() *token {
 	return nil
 }
 
-var rgxIndent = regexp.MustCompile(`^(\s+)`)
+var rindent = regexp.MustCompile(`^(\s+)`)
 
 func (s *scanner) scanIndent() *token {
 	if len(s.buffer) == 0 {
@@ -232,7 +233,7 @@ func (s *scanner) scanIndent() *token {
 		}
 	}
 
-	newIndent := rgxIndent.FindString(s.buffer)
+	newIndent := rindent.FindString(s.buffer)
 
 	if len(newIndent) != 0 && head == nil {
 		s.indents.PushBack(regexp.MustCompile(regexp.QuoteMeta(newIndent)))
@@ -260,186 +261,181 @@ func (s *scanner) scanIndent() *token {
 	return nil
 }
 
-var rgxDoctype = regexp.MustCompile(`^(!!!|doctype)\s*(.*)`)
+var rdoctype = regexp.MustCompile(`^(!!!|doctype)\s*(.*)`)
 
 func (s *scanner) scanDoctype() *token {
-	if sm := rgxDoctype.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		if len(sm[2]) == 0 {
-			sm[2] = "html"
+	if matches := rdoctype.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		if len(matches[2]) == 0 {
+			matches[2] = "html"
 		}
 
-		s.consume(len(sm[0]))
-		return &token{tokDoctype, sm[2], nil}
+		s.consume(len(matches[0]))
+		return &token{tokDoctype, matches[2], nil}
 	}
 
 	return nil
 }
 
-var rgxIf = regexp.MustCompile(`^if\s*(.+)$`)
-var rgxElse = regexp.MustCompile(`^else\s*`)
+var (
+	rif    = regexp.MustCompile(`^if\s*(.+)$`)
+	relse  = regexp.MustCompile(`^else\s*`)
+	relsif = regexp.MustCompile(`^elsif\s*(.+)$`)
+)
 
 func (s *scanner) scanCondition() *token {
-	if sm := rgxIf.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
-		return &token{tokIf, sm[1], nil}
+	if matches := rif.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
+		return &token{tokIf, matches[1], nil}
 	}
 
-	if sm := rgxElse.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
+	if matches := relsif.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
+		return &token(tokElseIf, matches[1], nil)
+	}
+
+	if matches := relse.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
 		return &token{tokElse, "", nil}
 	}
 
 	return nil
 }
 
-var rgxEach = regexp.MustCompile(`^each\s+(\$[\w0-9\-_]*)(?:\s*,\s*(\$[\w0-9\-_]*))?\s+in\s+(.+)$`)
+var reach = regexp.MustCompile(`^each\s+(\$[\w0-9\-_]*)(?:\s*,\s*(\$[\w0-9\-_]*))?\s+in\s+(.+)$`)
 
 func (s *scanner) scanEach() *token {
-	if sm := rgxEach.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
-		return &token{tokEach, sm[3], map[string]string{"X": sm[1], "Y": sm[2]}}
+	if matches := reach.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
+		return &token{tokEach, matches[3], map[string]string{"X": matches[1], "Y": matches[2]}}
 	}
 
 	return nil
 }
 
-var rgxAssignment = regexp.MustCompile(`^(\$[\w0-9\-_]*)?\s*=\s*(.+)$`)
+var rassignment = regexp.MustCompile(`^(\$[\w0-9\-_]*)?\s*=\s*(.+)$`)
 
 func (s *scanner) scanAssignment() *token {
-	if sm := rgxAssignment.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
-		return &token{tokAssignment, sm[2], map[string]string{"X": sm[1]}}
+	if matches := rassignment.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
+		return &token{tokAssignment, matches[2], map[string]string{"X": matches[1]}}
 	}
 
 	return nil
 }
 
-var rgxComment = regexp.MustCompile(`^\/\/(-)?\s*(.*)$`)
+var rcomment = regexp.MustCompile(`^\/\/(-)?\s*(.*)$`)
 
 func (s *scanner) scanComment() *token {
-	if sm := rgxComment.FindStringSubmatch(s.buffer); len(sm) != 0 {
+	if matches := rcomment.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		mode := "embed"
-		if len(sm[1]) != 0 {
+		if len(matches[1]) != 0 {
 			mode = "silent"
 		}
 
-		s.consume(len(sm[0]))
-		return &token{tokComment, sm[2], map[string]string{"Mode": mode}}
+		s.consume(len(matches[0]))
+		return &token{tokComment, matches[2], map[string]string{"Mode": mode}}
 	}
 
 	return nil
 }
 
-var rgxId = regexp.MustCompile(`^#([\w-]+)(?:\s*\?\s*(.*)$)?`)
+var rid = regexp.MustCompile(`^#([\w-]+)(?:\s*\?\s*(.*)$)?`)
 
 func (s *scanner) scanId() *token {
-	if sm := rgxId.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
-		return &token{tokId, sm[1], map[string]string{"Condition": sm[2]}}
+	if matches := rid.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
+		return &token{tokId, matches[1], map[string]string{"Condition": matches[2]}}
 	}
 
 	return nil
 }
 
-var rgxClassName = regexp.MustCompile(`^\.([\w-]+)(?:\s*\?\s*(.*)$)?`)
+var rclass = regexp.MustCompile(`^\.([\w-]+)(?:\s*\?\s*(.*)$)?`)
 
-func (s *scanner) scanClassName() *token {
-	if sm := rgxClassName.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
-		return &token{tokClass, sm[1], map[string]string{"Condition": sm[2]}}
+func (s *scanner) scanClass() *token {
+	if matches := rclass.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
+		return &token{tokClass, matches[1], map[string]string{"Condition": matches[2]}}
 	}
 
 	return nil
 }
 
-var rgxAttribute = regexp.MustCompile(`^\[([\w\-]+)\s*(?:=\s*(\"([^\"\\]*)\"|([^\]]+)))?\](?:\s*\?\s*(.*)$)?`)
+var rattribute = regexp.MustCompile(`^\[([\w\-]+)\s*(?:=\s*(\"([^\"\\]*)\"|([^\]]+)))?\](?:\s*\?\s*(.*)$)?`)
 
 func (s *scanner) scanAttribute() *token {
-	if sm := rgxAttribute.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
+	if matches := rattribute.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
 
-		if len(sm[3]) != 0 || sm[2] == "" {
-			return &token{tokAttribute, sm[1], map[string]string{"Content": sm[3], "Mode": "raw", "Condition": sm[5]}}
+		if len(matches[3]) != 0 || matches[2] == "" {
+			return &token{tokAttribute, matches[1], map[string]string{"Content": matches[3], "Mode": "raw", "Condition": matches[5]}}
 		}
 
-		return &token{tokAttribute, sm[1], map[string]string{"Content": sm[4], "Mode": "expression", "Condition": sm[5]}}
+		return &token{tokAttribute, matches[1], map[string]string{"Content": matches[4], "Mode": "expression", "Condition": matches[5]}}
 	}
 
 	return nil
 }
 
-var rgxImport = regexp.MustCompile(`^import\s+([0-9a-zA-Z_\-\. \/]*)$`)
+var rimport = regexp.MustCompile(`^import\s+([0-9a-zA-Z_\-\. \/]*)$`)
 
 func (s *scanner) scanImport() *token {
-	if sm := rgxImport.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
-		return &token{tokImport, sm[1], nil}
+	if matches := rimport.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
+		return &token{tokImport, matches[1], nil}
 	}
 
 	return nil
 }
 
-var rgxExtends = regexp.MustCompile(`^extends\s+([0-9a-zA-Z_\-\. \/]*)$`)
+var rextend = regexp.MustCompile(`^extend\s+([0-9a-zA-Z_\-\. \/]*)$`)
 
-func (s *scanner) scanExtends() *token {
-	if sm := rgxExtends.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
-		return &token{tokExtends, sm[1], nil}
+func (s *scanner) scanExtend() *token {
+	if matches := rextend.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
+		return &token{tokExtend, matches[1], nil}
 	}
 
 	return nil
 }
 
-var rgxBlock = regexp.MustCompile(`^block\s+(?:(append|prepend)\s+)?([0-9a-zA-Z_\-\. \/]*)$`)
+var rblock = regexp.MustCompile(`^block\s+(?:(append|prepend)\s+)?([0-9a-zA-Z_\-\. \/]*)$`)
 
 func (s *scanner) scanBlock() *token {
-	if sm := rgxBlock.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
-		return &token{tokNamedBlock, sm[2], map[string]string{"Modifier": sm[1]}}
+	if matches := rblock.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
+		return &token{tokNamedBlock, matches[2], map[string]string{"Modifier": matches[1]}}
 	}
 
 	return nil
 }
 
-var rgxTag = regexp.MustCompile(`^(\w[-:\w]*)`)
+var rtag = regexp.MustCompile(`^(\w[-:\w]*)`)
 
 func (s *scanner) scanTag() *token {
-	if sm := rgxTag.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
-		return &token{tokTag, sm[1], nil}
+	if matches := rtag.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
+		return &token{tokTag, matches[1], nil}
 	}
 
 	return nil
 }
 
-var rgxText = regexp.MustCompile(`^(\|)? ?(.*)$`)
+var rtext = regexp.MustCompile(`^(\|)? ?(.*)$`)
 
 func (s *scanner) scanText() *token {
-	if sm := rgxText.FindStringSubmatch(s.buffer); len(sm) != 0 {
-		s.consume(len(sm[0]))
+	if matches := rtext.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.consume(len(matches[0]))
 
 		mode := "inline"
-		if sm[1] == "|" {
+		if matches[1] == "|" {
 			mode = "piped"
 		}
 
-		return &token{tokText, sm[2], map[string]string{"Mode": mode}}
+		return &token{tokText, matches[2], map[string]string{"Mode": mode}}
 	}
 
 	return nil
-}
-
-func (s *scanner) consume(runes int) {
-	if len(s.buffer) < runes {
-		panic(fmt.Sprintf("Unable to consume %d runes from buffer.", runes))
-	}
-
-	s.lastTokenLine = s.line
-	s.lastTokenCol = s.column
-	s.lastTokenSize = runes
-
-	s.buffer = s.buffer[runes:]
-	s.column += runes
 }
 
 func (s *scanner) readline() {
@@ -466,4 +462,17 @@ func (s *scanner) readline() {
 	s.line += 1
 	s.column = 0
 	return
+}
+
+func (s *scanner) consume(runes int) {
+	if len(s.buffer) < runes {
+		panic(fmt.Sprintf("Unable to consume %d runes from buffer `%s`.", runes, s.buffer))
+	}
+
+	s.lastTokenLine = s.line
+	s.lastTokenCol = s.column
+	s.lastTokenSize = runes
+
+	s.buffer = s.buffer[runes:]
+	s.column += runes
 }
