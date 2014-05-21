@@ -44,7 +44,7 @@ type scanner struct {
 	buffer string
 
 	line          int
-	col           int
+	column        int
 	lastTokenLine int
 	lastTokenCol  int
 	lastTokenSize int
@@ -65,7 +65,7 @@ func newScanner(r io.Reader) *scanner {
 	s.stash = list.New()
 	s.state = scnNewLine
 	s.line = -1
-	s.col = 0
+	s.column = 0
 
 	return s
 }
@@ -435,11 +435,11 @@ func (s *scanner) consume(runes int) {
 	}
 
 	s.lastTokenLine = s.line
-	s.lastTokenCol = s.col
+	s.lastTokenCol = s.column
 	s.lastTokenSize = runes
 
 	s.buffer = s.buffer[runes:]
-	s.col += runes
+	s.column += runes
 }
 
 func (s *scanner) ensureBuffer() {
@@ -461,6 +461,6 @@ func (s *scanner) ensureBuffer() {
 		s.state = scnNewLine
 		s.buffer = buf
 		s.line += 1
-		s.col = 0
+		s.column = 0
 	}
 }
