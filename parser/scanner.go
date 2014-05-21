@@ -85,7 +85,7 @@ func (s *scanner) Next() *token {
 		return s.NextRaw()
 	}
 
-	s.ensureBuffer()
+	s.readline()
 
 	if stashed := s.stash.Front(); stashed != nil {
 		tok := stashed.Value.(*token)
@@ -171,7 +171,7 @@ func (s *scanner) NextRaw() *token {
 	level := 0
 
 	for {
-		s.ensureBuffer()
+		s.readline()
 
 		switch s.state {
 		case scnEOF:
@@ -442,25 +442,28 @@ func (s *scanner) consume(runes int) {
 	s.column += runes
 }
 
-func (s *scanner) ensureBuffer() {
+func (s *scanner) readline() {
 	if len(s.buffer) > 0 {
 		return
 	}
 
 	buf, err := s.reader.ReadString('\n')
-
-	if err != nil && err != io.EOF {
-		panic(err)
-	} else if err != nil && len(buf) == 0 {
-		s.state = scnEOF
-	} else {
-		if buf[len(buf)-1] == '\n' {
-			buf = buf[:len(buf)-1]
+	if err != nil {
+		if err != io.EOF {
+			panic(err)
 		}
 
-		s.state = scnNewLine
-		s.buffer = buf
-		s.line += 1
-		s.column = 0
+		s.state = scnEOF
+		return
 	}
+
+	if buf[len(buf)-1] == '\n' {
+		buf = buf[:len(buf)-1]
+	}
+
+	s.state = scnNewLine
+	s.buffer = buf
+	s.line += 1
+	s.column = 0
+	return
 }
