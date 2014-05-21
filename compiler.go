@@ -1,14 +1,13 @@
-package amber
+package slim
 
 import (
 	"bytes"
 	"container/list"
 	"errors"
 	"fmt"
-	"github.com/eknkc/amber/parser"
-	"go/ast"
-	gp "go/parser"
-	gt "go/token"
+	goAst "go/ast"
+	goParser "go/parser"
+	goToken "go/token"
 	"html/template"
 	"io"
 	"path/filepath"
@@ -16,6 +15,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/golib/slim/parser"
 )
 
 var builtinFunctions = [...]string{
@@ -31,12 +32,12 @@ var builtinFunctions = [...]string{
 	"unescaped",
 }
 
-// Compiler is the main interface of Amber Template Engine.
-// In order to use an Amber template, it is required to create a Compiler and
-// compile an Amber source to native Go template.
-//	compiler := amber.New()
+// Compiler is the main interface of Slim Template Engine.
+// In order to use an Slim template, it is required to create a Compiler and
+// compile an Slim source to native Go template.
+//	compiler := slim.New()
 // 	// Parse the input file
-//	err := compiler.ParseFile("./input.amber")
+//	err := compiler.ParseFile("./input.slim")
 //	if err == nil {
 //		// Compile input file to Go template
 //		tpl, err := compiler.Compile()
@@ -74,14 +75,14 @@ type Options struct {
 	// Default: true
 	PrettyPrint bool
 	// Setting if line number emitting is enabled
-	// In this form, Amber emits line number comments in the output template. It is usable in debugging environments.
+	// In this form, Slim emits line number comments in the output template. It is usable in debugging environments.
 	// Default: false
 	LineNumbers bool
 }
 
 var DefaultOptions = Options{true, false}
 
-// Parses and compiles the supplied amber template string. Returns corresponding Go Template (html/templates) instance.
+// Parses and compiles the supplied slim template string. Returns corresponding Go Template (html/templates) instance.
 // Necessary runtime functions will be injected and the template will be ready to be executed.
 func Compile(input string, options Options) (*template.Template, error) {
 	comp := New()
@@ -109,7 +110,7 @@ func CompileFile(filename string, options Options) (*template.Template, error) {
 	return comp.Compile()
 }
 
-// Parse given raw amber template string.
+// Parse given raw slim template string.
 func (c *Compiler) Parse(input string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -127,7 +128,7 @@ func (c *Compiler) Parse(input string) (err error) {
 	return
 }
 
-// Parse the amber template file in given path
+// Parse the slim template file in given path
 func (c *Compiler) ParseFile(filename string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -146,7 +147,7 @@ func (c *Compiler) ParseFile(filename string) (err error) {
 	return
 }
 
-// Compile amber and create a Go Template (html/templates) instance.
+// Compile slim and create a Go Template (html/templates) instance.
 // Necessary runtime functions will be injected and the template will be ready to be executed.
 func (c *Compiler) Compile() (*template.Template, error) {
 	return c.CompileWithName(filepath.Base(c.filename))
@@ -174,7 +175,7 @@ func (c *Compiler) CompileWithTemplate(t *template.Template) (*template.Template
 	return tpl, nil
 }
 
-// Compile amber and write the Go Template source into given io.Writer instance
+// Compile slim and write the Go Template source into given io.Writer instance
 // You would not be using this unless debugging / checking the output. Please use Compile
 // method to obtain a template instance directly.
 func (c *Compiler) CompileWriter(out io.Writer) (err error) {
@@ -213,16 +214,16 @@ func (c *Compiler) CompileString() (string, error) {
 func (c *Compiler) visit(node parser.Node) {
 	defer func() {
 		if r := recover(); r != nil {
-			if rs, ok := r.(string); ok && rs[:len("Amber Error")] == "Amber Error" {
+			if rs, ok := r.(string); ok && rs[:len("Slim Error")] == "Slim Error" {
 				panic(r)
 			}
 
 			pos := node.Pos()
 
 			if len(pos.Filename) > 0 {
-				panic(fmt.Sprintf("Amber Error in <%s>: %v - Line: %d, Column: %d, Length: %d", pos.Filename, r, pos.LineNum, pos.ColNum, pos.TokenLength))
+				panic(fmt.Sprintf("Slim Error in <%s>: %v - Line: %d, Column: %d, Length: %d", pos.Filename, r, pos.LineNum, pos.ColNum, pos.TokenLength))
 			} else {
-				panic(fmt.Sprintf("Amber Error: %v - Line: %d, Column: %d, Length: %d", r, pos.LineNum, pos.ColNum, pos.TokenLength))
+				panic(fmt.Sprintf("Slim Error: %v - Line: %d, Column: %d, Length: %d", r, pos.LineNum, pos.ColNum, pos.TokenLength))
 			}
 		}
 	}()
@@ -267,7 +268,7 @@ func (c *Compiler) indent(offset int, newline bool) {
 
 func (c *Compiler) tempvar() string {
 	c.tempvarIndex++
-	return "$__amber_" + strconv.Itoa(c.tempvarIndex)
+	return "$__slim_" + strconv.Itoa(c.tempvarIndex)
 }
 
 func (c *Compiler) escape(input string) string {
@@ -447,7 +448,7 @@ func (c *Compiler) visitInterpolation(value string) string {
 
 func (c *Compiler) visitRawInterpolation(value string) string {
 	value = strings.Replace(value, "$", "__DOLLAR__", -1)
-	expr, err := gp.ParseExpr(value)
+	expr, err := goParser.ParseExpr(value)
 	if err != nil {
 		panic("Unable to parse expression.")
 	}
@@ -455,7 +456,7 @@ func (c *Compiler) visitRawInterpolation(value string) string {
 	return value
 }
 
-func (c *Compiler) visitExpression(outerexpr ast.Expr) string {
+func (c *Compiler) visitExpression(outerexpr goAst.Expr) string {
 	stack := list.New()
 
 	pop := func() string {
@@ -468,13 +469,13 @@ func (c *Compiler) visitExpression(outerexpr ast.Expr) string {
 		return val
 	}
 
-	var exec func(ast.Expr)
+	var exec func(goAst.Expr)
 
-	exec = func(expr ast.Expr) {
+	exec = func(expr goAst.Expr) {
 		switch expr.(type) {
-		case *ast.BinaryExpr:
+		case *goAst.BinaryExpr:
 			{
-				be := expr.(*ast.BinaryExpr)
+				be := expr.(*goAst.BinaryExpr)
 
 				exec(be.Y)
 				exec(be.X)
@@ -484,34 +485,34 @@ func (c *Compiler) visitExpression(outerexpr ast.Expr) string {
 				c.write(`{{` + name + ` := `)
 
 				switch be.Op {
-				case gt.ADD:
-					c.write("__amber_add ")
-				case gt.SUB:
-					c.write("__amber_sub ")
-				case gt.MUL:
-					c.write("__amber_mul ")
-				case gt.QUO:
-					c.write("__amber_quo ")
-				case gt.REM:
-					c.write("__amber_rem ")
-				case gt.LAND:
+				case goToken.ADD:
+					c.write("__slim_add ")
+				case goToken.SUB:
+					c.write("__slim_sub ")
+				case goToken.MUL:
+					c.write("__slim_mul ")
+				case goToken.QUO:
+					c.write("__slim_quo ")
+				case goToken.REM:
+					c.write("__slim_rem ")
+				case goToken.LAND:
 					c.write("and ")
-				case gt.LOR:
+				case goToken.LOR:
 					c.write("or ")
-				case gt.EQL:
-					c.write("__amber_eql ")
-				case gt.NEQ:
-					c.write("__amber_eql ")
+				case goToken.EQL:
+					c.write("__slim_eql ")
+				case goToken.NEQ:
+					c.write("__slim_eql ")
 					negate = true
-				case gt.LSS:
-					c.write("__amber_lss ")
-				case gt.GTR:
-					c.write("__amber_gtr ")
-				case gt.LEQ:
-					c.write("__amber_gtr ")
+				case goToken.LSS:
+					c.write("__slim_lss ")
+				case goToken.GTR:
+					c.write("__slim_gtr ")
+				case goToken.LEQ:
+					c.write("__slim_gtr ")
 					negate = true
-				case gt.GEQ:
-					c.write("__amber_lss ")
+				case goToken.GEQ:
+					c.write("__slim_lss ")
 					negate = true
 				default:
 					panic("Unexpected operator!")
@@ -527,9 +528,9 @@ func (c *Compiler) visitExpression(outerexpr ast.Expr) string {
 					stack.PushFront(negname)
 				}
 			}
-		case *ast.UnaryExpr:
+		case *goAst.UnaryExpr:
 			{
-				ue := expr.(*ast.UnaryExpr)
+				ue := expr.(*goAst.UnaryExpr)
 
 				exec(ue.X)
 
@@ -537,11 +538,11 @@ func (c *Compiler) visitExpression(outerexpr ast.Expr) string {
 				c.write(`{{` + name + ` := `)
 
 				switch ue.Op {
-				case gt.SUB:
-					c.write("__amber_minus ")
-				case gt.ADD:
-					c.write("__amber_plus ")
-				case gt.NOT:
+				case goToken.SUB:
+					c.write("__slim_minus ")
+				case goToken.ADD:
+					c.write("__slim_plus ")
+				case goToken.NOT:
 					c.write("not ")
 				default:
 					panic("Unexpected operator!")
@@ -550,23 +551,23 @@ func (c *Compiler) visitExpression(outerexpr ast.Expr) string {
 				c.write(pop() + `}}`)
 				stack.PushFront(name)
 			}
-		case *ast.ParenExpr:
-			exec(expr.(*ast.ParenExpr).X)
-		case *ast.BasicLit:
-			stack.PushFront(expr.(*ast.BasicLit).Value)
-		case *ast.Ident:
-			name := expr.(*ast.Ident).Name
+		case *goAst.ParenExpr:
+			exec(expr.(*goAst.ParenExpr).X)
+		case *goAst.BasicLit:
+			stack.PushFront(expr.(*goAst.BasicLit).Value)
+		case *goAst.Ident:
+			name := expr.(*goAst.Ident).Name
 			if len(name) >= len("__DOLLAR__") && name[:len("__DOLLAR__")] == "__DOLLAR__" {
 				if name == "__DOLLAR__" {
 					stack.PushFront(`.`)
 				} else {
-					stack.PushFront(`$` + expr.(*ast.Ident).Name[len("__DOLLAR__"):])
+					stack.PushFront(`$` + expr.(*goAst.Ident).Name[len("__DOLLAR__"):])
 				}
 			} else {
-				stack.PushFront(`.` + expr.(*ast.Ident).Name)
+				stack.PushFront(`.` + expr.(*goAst.Ident).Name)
 			}
-		case *ast.SelectorExpr:
-			se := expr.(*ast.SelectorExpr)
+		case *goAst.SelectorExpr:
+			se := expr.(*goAst.SelectorExpr)
 			exec(se.X)
 			x := pop()
 
@@ -577,8 +578,8 @@ func (c *Compiler) visitExpression(outerexpr ast.Expr) string {
 			name := c.tempvar()
 			c.write(`{{` + name + ` := ` + x + `.` + se.Sel.Name + `}}`)
 			stack.PushFront(name)
-		case *ast.CallExpr:
-			ce := expr.(*ast.CallExpr)
+		case *goAst.CallExpr:
+			ce := expr.(*goAst.CallExpr)
 
 			for i := len(ce.Args) - 1; i >= 0; i-- {
 				exec(ce.Args[i])
@@ -587,7 +588,7 @@ func (c *Compiler) visitExpression(outerexpr ast.Expr) string {
 			name := c.tempvar()
 			builtin := false
 
-			if ident, ok := ce.Fun.(*ast.Ident); ok {
+			if ident, ok := ce.Fun.(*goAst.Ident); ok {
 				for _, fname := range builtinFunctions {
 					if fname == ident.Name {
 						builtin = true
@@ -597,7 +598,7 @@ func (c *Compiler) visitExpression(outerexpr ast.Expr) string {
 			}
 
 			if builtin {
-				stack.PushFront(ce.Fun.(*ast.Ident).Name)
+				stack.PushFront(ce.Fun.(*goAst.Ident).Name)
 				c.write(`{{` + name + ` := ` + pop())
 			} else {
 				exec(ce.Fun)

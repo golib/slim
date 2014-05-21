@@ -1,6 +1,6 @@
 /*
-Amber is an elegant templating engine for Go Programming Language
-It is inspired from HAML and Jade
+Slim is an elegant templating engine for Go Programming Language
+It is modified from [Amber](https://github.com/eknkc/amber)
 
 Tags
 
@@ -90,7 +90,7 @@ executed with following JSON data:
         "Name": "Ekin",
         "LastName": "Koc",
         "Repositories": [
-            "amber",
+            "slim",
             "dateformat"
         ],
         "Avatar": "/images/ekin.jpg",
@@ -115,7 +115,7 @@ would print
 
 Expressions
 
-Amber can expand basic expressions. For example, it is possible to concatenate strings with + operator:
+Slim can expand basic expressions. For example, it is possible to concatenate strings with + operator:
 
     p Welcome #{Name + " " + LastName}
 
@@ -179,7 +179,7 @@ It is possible to iterate over arrays and maps using `each`:
 
 would print
 
-    p amber
+    p slim
     p dateformat
 
 It is also possible to iterate over values and indexes at the same time
@@ -193,13 +193,13 @@ Includes
 
 A template can include other templates using `include`:
 
-    a.amber
+    a.slim
         p this is template a
 
-    b.amber
+    b.slim
         p this is template b
 
-    c.amber
+    c.slim
         div
             include a
             include b
@@ -215,7 +215,7 @@ Inheritance
 A template can inherit other templates. In order to inherit another template, an `extends` keyword should be used.
 Parent template can define several named blocks and child template can modify the blocks.
 
-    master.amber
+    master.slim
         !!! 5
         html
             head
@@ -228,7 +228,7 @@ Parent template can define several named blocks and child template can modify th
             body
                 block content
 
-    subpage.amber
+    subpage.slim
         extends master
 
         block title
@@ -254,4 +254,4 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
-package amber
+package slim

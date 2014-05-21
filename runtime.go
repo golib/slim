@@ -1,4 +1,4 @@
-package amber
+package slim
 
 import (
 	"encoding/json"
@@ -8,16 +8,16 @@ import (
 )
 
 var funcMap = template.FuncMap{
-	"__amber_add":   runtime_add,
-	"__amber_sub":   runtime_sub,
-	"__amber_mul":   runtime_mul,
-	"__amber_quo":   runtime_quo,
-	"__amber_rem":   runtime_rem,
-	"__amber_minus": runtime_minus,
-	"__amber_plus":  runtime_plus,
-	"__amber_eql":   runtime_eql,
-	"__amber_gtr":   runtime_gtr,
-	"__amber_lss":   runtime_lss,
+	"__slim_add":   runtime_add,
+	"__slim_sub":   runtime_sub,
+	"__slim_mul":   runtime_mul,
+	"__slim_quo":   runtime_quo,
+	"__slim_rem":   runtime_rem,
+	"__slim_minus": runtime_minus,
+	"__slim_plus":  runtime_plus,
+	"__slim_eql":   runtime_eql,
+	"__slim_gtr":   runtime_gtr,
+	"__slim_lss":   runtime_lss,
 
 	"json":      runtime_json,
 	"unescaped": runtime_unescaped,

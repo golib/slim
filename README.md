@@ -1,8 +1,8 @@
-# amber
+# slim
 --
-    import "github.com/eknkc/amber"
+    import "github.com/eknkc/slim"
 
-Amber is an elegant templating engine for Go Programming Language
+Slim is an elegant templating engine for Go Programming Language
 It is inspired from HAML and Jade
 
 ### Tags
@@ -93,7 +93,7 @@ executed with following JSON data:
         "Name": "Ekin",
         "LastName": "Koc",
         "Repositories": [
-            "amber",
+            "slim",
             "dateformat"
         ],
         "Avatar": "/images/ekin.jpg",
@@ -118,7 +118,7 @@ would print
 
 ### Expressions
 
-Amber can expand basic expressions. For example, it is possible to concatenate strings with + operator:
+Slim can expand basic expressions. For example, it is possible to concatenate strings with + operator:
 
     p Welcome #{Name + " " + LastName}
 
@@ -182,7 +182,7 @@ It is possible to iterate over arrays and maps using `each`:
 
 would print
 
-    p amber
+    p slim
     p dateformat
 
 It is also possible to iterate over values and indexes at the same time
@@ -196,13 +196,13 @@ It is also possible to iterate over values and indexes at the same time
 
 A template can import other templates using `import`:
 
-    a.amber
+    a.slim
         p this is template a
 
-    b.amber
+    b.slim
         p this is template b
 
-    c.amber
+    c.slim
         div
             import a
             import b
@@ -218,7 +218,7 @@ gets compiled to
 A tamplate can inherit other templates. In order to inherit another template, an `extends` keyword should be used.
 Parent template can define several named blocks and child template can modify the blocks.
 
-    master.amber
+    master.slim
         !!! 5
         html
             head
@@ -231,7 +231,7 @@ Parent template can define several named blocks and child template can modify th
             body
                 block content
 
-    subpage.amber
+    subpage.slim
         extends master
 
         block title
@@ -268,7 +268,7 @@ var DefaultOptions = Options{true, false}
 ```go
 func Compile(input string, options Options) (*template.Template, error)
 ```
-Parses and compiles the supplied amber template string. Returns corresponding Go
+Parses and compiles the supplied slim template string. Returns corresponding Go
 Template (html/templates) instance. Necessary runtime functions will be injected
 and the template will be ready to be executed.
 
@@ -290,13 +290,13 @@ type Compiler struct {
 }
 ```
 
-Compiler is the main interface of Amber Template Engine. In order to use an
-Amber template, it is required to create a Compiler and compile an Amber source
+Compiler is the main interface of Slim Template Engine. In order to use an
+Slim template, it is required to create a Compiler and compile an Slim source
 to native Go template.
 
-    compiler := amber.New()
+    compiler := slim.New()
     // Parse the input file
-    err := compiler.ParseFile("./input.amber")
+    err := compiler.ParseFile("./input.slim")
     if err == nil {
     	// Compile input file to Go template
     	tpl, err := compiler.Compile()
@@ -318,7 +318,7 @@ Create and initialize a new Compiler
 ```go
 func (c *Compiler) Compile() (*template.Template, error)
 ```
-Compile amber and create a Go Template (html/templates) instance. Necessary
+Compile slim and create a Go Template (html/templates) instance. Necessary
 runtime functions will be injected and the template will be ready to be
 executed.
 
@@ -336,7 +336,7 @@ template instance directly.
 ```go
 func (c *Compiler) CompileWriter(out io.Writer) (err error)
 ```
-Compile amber and write the Go Template source into given io.Writer instance You
+Compile slim and write the Go Template source into given io.Writer instance You
 would not be using this unless debugging / checking the output. Please use
 Compile method to obtain a template instance directly.
 
@@ -345,14 +345,14 @@ Compile method to obtain a template instance directly.
 ```go
 func (c *Compiler) Parse(input string) (err error)
 ```
-Parse given raw amber template string.
+Parse given raw slim template string.
 
 #### func (*Compiler) ParseFile
 
 ```go
 func (c *Compiler) ParseFile(filename string) (err error)
 ```
-Parse the amber tempalte file in given path
+Parse the slim tempalte file in given path
 
 #### type Options
 
@@ -364,7 +364,7 @@ type Options struct {
 	// Defaukt: true
 	PrettyPrint bool
 	// Setting if line number emiting is enabled
-	// In this form, Amber emits line number comments in the output template. It is usable in debugging environments.
+	// In this form, Slim emits line number comments in the output template. It is usable in debugging environments.
 	// Default: false
 	LineNumbers bool
 }
