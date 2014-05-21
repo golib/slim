@@ -71,7 +71,12 @@ func newScanner(r io.Reader) *scanner {
 }
 
 func (s *scanner) Pos() SourcePosition {
-	return SourcePosition{s.lastTokenLine + 1, s.lastTokenCol + 1, s.lastTokenSize, ""}
+	return SourcePosition{
+		Line:        s.lastTokenLine + 1,
+		Column:      s.lastTokenCol + 1,
+		TokenLength: s.lastTokenSize,
+		Filename:    "",
+	}
 }
 
 func (s *scanner) Next() *token {

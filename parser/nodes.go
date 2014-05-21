@@ -30,8 +30,8 @@ type Node interface {
 }
 
 type SourcePosition struct {
-	LineNum     int
-	ColNum      int
+	Line        int
+	Column      int
 	TokenLength int
 	Filename    string
 }

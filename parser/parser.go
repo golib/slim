@@ -55,9 +55,9 @@ func (p *Parser) Parse() *Block {
 			pos := p.pos()
 
 			if len(pos.Filename) > 0 {
-				panic(fmt.Sprintf("Slim Error in <%s>: %v - Line: %d, Column: %d, Length: %d", pos.Filename, r, pos.LineNum, pos.ColNum, pos.TokenLength))
+				panic(fmt.Sprintf("Slim Error in <%s>: %v - Line: %d, Column: %d, Length: %d", pos.Filename, r, pos.Line, pos.Column, pos.TokenLength))
 			} else {
-				panic(fmt.Sprintf("Slim Error: %v - Line: %d, Column: %d, Length: %d", r, pos.LineNum, pos.ColNum, pos.TokenLength))
+				panic(fmt.Sprintf("Slim Error: %v - Line: %d, Column: %d, Length: %d", r, pos.Line, pos.Column, pos.TokenLength))
 			}
 		}
 	}()
