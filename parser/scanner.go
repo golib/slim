@@ -69,11 +69,11 @@ type scanner struct {
 	state  int32
 	buffer string
 
-	line          int
-	column        int
-	lastTokenLine int
-	lastTokenCol  int
-	lastTokenSize int
+	line            int
+	column          int
+	lastTokenLine   int
+	lastTokenColumn int
+	lastTokenSize   int
 
 	readRaw bool
 }
@@ -93,7 +93,7 @@ func newScanner(r io.Reader) *scanner {
 func (s *scanner) Pos() SourcePosition {
 	return SourcePosition{
 		Line:        s.lastTokenLine + 1,
-		Column:      s.lastTokenCol + 1,
+		Column:      s.lastTokenColumn + 1,
 		Filename:    "",
 		TokenLength: s.lastTokenSize,
 	}
@@ -457,7 +457,7 @@ func (s *scanner) consume(runes int) {
 	}
 
 	s.lastTokenLine = s.line
-	s.lastTokenCol = s.column
+	s.lastTokenColumn = s.column
 	s.lastTokenSize = runes
 
 	s.buffer = s.buffer[runes:]
