@@ -36,6 +36,25 @@ const (
 	scnEOF
 )
 
+var (
+	rindent     = regexp.MustCompile(`^(\s+)`)
+	rdoctype    = regexp.MustCompile(`^(!!!|doctype)\s*(.*)`)
+	reach       = regexp.MustCompile(`^each\s+(\$[\w0-9\-_]*)(?:\s*,\s*(\$[\w0-9\-_]*))?\s+in\s+(.+)$`)
+	rif         = regexp.MustCompile(`^if\s*(.+)$`)
+	relse       = regexp.MustCompile(`^else\s*`)
+	relsif      = regexp.MustCompile(`^elsif\s*(.+)$`)
+	rassignment = regexp.MustCompile(`^(\$[\w0-9\-_]*)?\s*=\s*(.+)$`)
+	rcomment    = regexp.MustCompile(`^\/\/(-)?\s*(.*)$`)
+	rid         = regexp.MustCompile(`^#([\w-]+)(?:\s*\?\s*(.*)$)?`)
+	rclass      = regexp.MustCompile(`^\.([\w-]+)(?:\s*\?\s*(.*)$)?`)
+	rattribute  = regexp.MustCompile(`^\[([\w\-]+)\s*(?:=\s*(\"([^\"\\]*)\"|([^\]]+)))?\](?:\s*\?\s*(.*)$)?`)
+	rimport     = regexp.MustCompile(`^import\s+([0-9a-zA-Z_\-\. \/]*)$`)
+	rextend     = regexp.MustCompile(`^extend\s+([0-9a-zA-Z_\-\. \/]*)$`)
+	rblock      = regexp.MustCompile(`^block\s+(?:(append|prepend)\s+)?([0-9a-zA-Z_\-\. \/]*)$`)
+	rtag        = regexp.MustCompile(`^(\w[-:\w]*)`)
+	rtext       = regexp.MustCompile(`^(\|)? ?(.*)$`)
+)
+
 type token struct {
 	Kind  rune
 	Value string
@@ -215,8 +234,6 @@ func (s *scanner) NextRaw() *token {
 	return nil
 }
 
-var rindent = regexp.MustCompile(`^(\s+)`)
-
 func (s *scanner) scanIndent() *token {
 	if len(s.buffer) == 0 {
 		return &token{tokBlank, "", nil}
@@ -261,8 +278,6 @@ func (s *scanner) scanIndent() *token {
 	return nil
 }
 
-var rdoctype = regexp.MustCompile(`^(!!!|doctype)\s*(.*)`)
-
 func (s *scanner) scanDoctype() *token {
 	if matches := rdoctype.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		if len(matches[2]) == 0 {
@@ -275,12 +290,6 @@ func (s *scanner) scanDoctype() *token {
 
 	return nil
 }
-
-var (
-	rif    = regexp.MustCompile(`^if\s*(.+)$`)
-	relse  = regexp.MustCompile(`^else\s*`)
-	relsif = regexp.MustCompile(`^elsif\s*(.+)$`)
-)
 
 func (s *scanner) scanCondition() *token {
 	if matches := rif.FindStringSubmatch(s.buffer); len(matches) != 0 {
@@ -301,8 +310,6 @@ func (s *scanner) scanCondition() *token {
 	return nil
 }
 
-var reach = regexp.MustCompile(`^each\s+(\$[\w0-9\-_]*)(?:\s*,\s*(\$[\w0-9\-_]*))?\s+in\s+(.+)$`)
-
 func (s *scanner) scanEach() *token {
 	if matches := reach.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
@@ -312,8 +319,6 @@ func (s *scanner) scanEach() *token {
 	return nil
 }
 
-var rassignment = regexp.MustCompile(`^(\$[\w0-9\-_]*)?\s*=\s*(.+)$`)
-
 func (s *scanner) scanAssignment() *token {
 	if matches := rassignment.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
@@ -322,8 +327,6 @@ func (s *scanner) scanAssignment() *token {
 
 	return nil
 }
-
-var rcomment = regexp.MustCompile(`^\/\/(-)?\s*(.*)$`)
 
 func (s *scanner) scanComment() *token {
 	if matches := rcomment.FindStringSubmatch(s.buffer); len(matches) != 0 {
@@ -339,8 +342,6 @@ func (s *scanner) scanComment() *token {
 	return nil
 }
 
-var rid = regexp.MustCompile(`^#([\w-]+)(?:\s*\?\s*(.*)$)?`)
-
 func (s *scanner) scanId() *token {
 	if matches := rid.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
@@ -350,8 +351,6 @@ func (s *scanner) scanId() *token {
 	return nil
 }
 
-var rclass = regexp.MustCompile(`^\.([\w-]+)(?:\s*\?\s*(.*)$)?`)
-
 func (s *scanner) scanClass() *token {
 	if matches := rclass.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
@@ -360,8 +359,6 @@ func (s *scanner) scanClass() *token {
 
 	return nil
 }
-
-var rattribute = regexp.MustCompile(`^\[([\w\-]+)\s*(?:=\s*(\"([^\"\\]*)\"|([^\]]+)))?\](?:\s*\?\s*(.*)$)?`)
 
 func (s *scanner) scanAttribute() *token {
 	if matches := rattribute.FindStringSubmatch(s.buffer); len(matches) != 0 {
@@ -377,8 +374,6 @@ func (s *scanner) scanAttribute() *token {
 	return nil
 }
 
-var rimport = regexp.MustCompile(`^import\s+([0-9a-zA-Z_\-\. \/]*)$`)
-
 func (s *scanner) scanImport() *token {
 	if matches := rimport.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
@@ -387,8 +382,6 @@ func (s *scanner) scanImport() *token {
 
 	return nil
 }
-
-var rextend = regexp.MustCompile(`^extend\s+([0-9a-zA-Z_\-\. \/]*)$`)
 
 func (s *scanner) scanExtend() *token {
 	if matches := rextend.FindStringSubmatch(s.buffer); len(matches) != 0 {
@@ -399,8 +392,6 @@ func (s *scanner) scanExtend() *token {
 	return nil
 }
 
-var rblock = regexp.MustCompile(`^block\s+(?:(append|prepend)\s+)?([0-9a-zA-Z_\-\. \/]*)$`)
-
 func (s *scanner) scanBlock() *token {
 	if matches := rblock.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
@@ -410,8 +401,6 @@ func (s *scanner) scanBlock() *token {
 	return nil
 }
 
-var rtag = regexp.MustCompile(`^(\w[-:\w]*)`)
-
 func (s *scanner) scanTag() *token {
 	if matches := rtag.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
@@ -420,8 +409,6 @@ func (s *scanner) scanTag() *token {
 
 	return nil
 }
-
-var rtext = regexp.MustCompile(`^(\|)? ?(.*)$`)
 
 func (s *scanner) scanText() *token {
 	if matches := rtext.FindStringSubmatch(s.buffer); len(matches) != 0 {
