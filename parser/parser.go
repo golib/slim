@@ -75,7 +75,7 @@ func (p *Parser) Parse() *Block {
 			continue
 		}
 
-		block.push(p.parse())
+		block.push(p.parseToken())
 	}
 
 	if p.parent != nil {
@@ -134,7 +134,20 @@ func (p *Parser) parseRelativeFile(filename string) *Parser {
 	return parser
 }
 
-func (p *Parser) parse() Node {
+func (p *Parser) expect(typ rune) *token {
+	if p.token.Kind != typ {
+		panic("Unexpected token!")
+	}
+	curtok := p.token
+	p.scanToken()
+	return curtok
+}
+
+func (p *Parser) scanToken() {
+	p.token = p.scanner.Next()
+}
+
+func (p *Parser) parseToken() Node {
 	switch p.token.Kind {
 	case tokDoctype:
 		return p.parseDoctype()
@@ -161,19 +174,6 @@ func (p *Parser) parse() Node {
 	}
 
 	panic(fmt.Sprintf("Unexpected token: %d", p.token.Kind))
-}
-
-func (p *Parser) expect(typ rune) *token {
-	if p.token.Kind != typ {
-		panic("Unexpected token!")
-	}
-	curtok := p.token
-	p.scanToken()
-	return curtok
-}
-
-func (p *Parser) scanToken() {
-	p.token = p.scanner.Next()
 }
 
 func (p *Parser) parseExtends() *Block {
@@ -226,7 +226,7 @@ func (p *Parser) parseBlock(parent Node) *Block {
 			}
 		}
 
-		block.push(p.parse())
+		block.push(p.parseToken())
 	}
 
 	p.expect(tokOutdent)
