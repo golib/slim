@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strings"
+	"unicode"
 )
 
 const (
@@ -439,12 +441,8 @@ func (s *scanner) readline() {
 		return
 	}
 
-	if buf[len(buf)-1] == '\n' {
-		buf = buf[:len(buf)-1]
-	}
-
 	s.state = scnNewLine
-	s.buffer = buf
+	s.buffer = strings.TrimRightFunc(buf, unicode.IsSpace)
 	s.line += 1
 	s.column = 0
 	return
