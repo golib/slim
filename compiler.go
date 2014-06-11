@@ -136,7 +136,7 @@ func (c *Compiler) ParseFile(filename string) (err error) {
 		}
 	}()
 
-	parser, err := parser.FileParser(filename)
+	parser, err := parser.NewFileParser(filename)
 
 	if err != nil {
 		return

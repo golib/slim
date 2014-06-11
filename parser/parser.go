@@ -29,7 +29,7 @@ func NewStringParser(input string) (*Parser, error) {
 	return newParser(bytes.NewReader([]byte(input))), nil
 }
 
-func FileParser(filename string) (*Parser, error) {
+func NewFileParser(filename string) (*Parser, error) {
 	data, err := ioutil.ReadFile(filename)
 
 	if err != nil {
@@ -126,7 +126,7 @@ func (p *Parser) parseRelativeFile(filename string) *Parser {
 		filename = filename + ".slim"
 	}
 
-	parser, err := FileParser(filename)
+	parser, err := NewFileParser(filename)
 	if err != nil {
 		panic("Unable to read " + filename + ", Error: " + string(err.Error()))
 	}
