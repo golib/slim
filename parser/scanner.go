@@ -102,7 +102,7 @@ func (s *scanner) Pos() SourcePosition {
 func (s *scanner) Next() *token {
 	if s.readRaw {
 		s.readRaw = false
-		return s.NextRaw()
+		return s.scanRaw()
 	}
 
 	s.readline()
@@ -186,7 +186,7 @@ func (s *scanner) Next() *token {
 	return nil
 }
 
-func (s *scanner) NextRaw() *token {
+func (s *scanner) scanRaw() *token {
 	result := ""
 	level := 0
 
