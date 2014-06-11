@@ -108,9 +108,8 @@ func (s *scanner) Next() *token {
 	s.readline()
 
 	if stashed := s.stash.Front(); stashed != nil {
-		tok := stashed.Value.(*token)
-		s.stash.Remove(stashed)
-		return tok
+		tok := s.stash.Remove(stashed)
+		return tok.(*token)
 	}
 
 	switch s.state {
