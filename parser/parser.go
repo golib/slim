@@ -63,15 +63,14 @@ func (p *Parser) Parse() *Block {
 
 	block := newBlock()
 
-	p.scanToken()
-
 	for {
+		p.scanToken()
+
 		if p.token == nil || p.token.Kind == tokEOF {
 			break
 		}
 
 		if p.token.Kind == tokBlank {
-			p.scanToken()
 			continue
 		}
 
