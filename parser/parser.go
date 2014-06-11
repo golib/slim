@@ -10,12 +10,12 @@ import (
 )
 
 type Parser struct {
-	scanner      *scanner
-	filename     string
-	currenttoken *token
-	namedBlocks  map[string]*NamedBlock
-	parent       *Parser
-	result       *Block
+	scanner     *scanner
+	parent      *Parser
+	filename    string
+	token       *token
+	result      *Block
+	namedBlocks map[string]*NamedBlock
 }
 
 func newParser(rdr io.Reader) *Parser {
@@ -66,11 +66,11 @@ func (p *Parser) Parse() *Block {
 	p.advance()
 
 	for {
-		if p.currenttoken == nil || p.currenttoken.Kind == tokEOF {
+		if p.token == nil || p.token.Kind == tokEOF {
 			break
 		}
 
-		if p.currenttoken.Kind == tokBlank {
+		if p.token.Kind == tokBlank {
 			p.advance()
 			continue
 		}
@@ -135,7 +135,7 @@ func (p *Parser) parseRelativeFile(filename string) *Parser {
 }
 
 func (p *Parser) parse() Node {
-	switch p.currenttoken.Kind {
+	switch p.token.Kind {
 	case tokDoctype:
 		return p.parseDoctype()
 	case tokComment:
@@ -160,20 +160,20 @@ func (p *Parser) parse() Node {
 		return p.parseBlock(nil)
 	}
 
-	panic(fmt.Sprintf("Unexpected token: %d", p.currenttoken.Kind))
+	panic(fmt.Sprintf("Unexpected token: %d", p.token.Kind))
 }
 
 func (p *Parser) expect(typ rune) *token {
-	if p.currenttoken.Kind != typ {
+	if p.token.Kind != typ {
 		panic("Unexpected token!")
 	}
-	curtok := p.currenttoken
+	curtok := p.token
 	p.advance()
 	return curtok
 }
 
 func (p *Parser) advance() {
-	p.currenttoken = p.scanner.Next()
+	p.token = p.scanner.Next()
 }
 
 func (p *Parser) parseExtends() *Block {
@@ -194,21 +194,21 @@ func (p *Parser) parseBlock(parent Node) *Block {
 	block.SourcePosition = p.pos()
 
 	for {
-		if p.currenttoken == nil || p.currenttoken.Kind == tokEOF || p.currenttoken.Kind == tokOutdent {
+		if p.token == nil || p.token.Kind == tokEOF || p.token.Kind == tokOutdent {
 			break
 		}
 
-		if p.currenttoken.Kind == tokBlank {
+		if p.token.Kind == tokBlank {
 			p.advance()
 			continue
 		}
 
-		if p.currenttoken.Kind == tokId ||
-			p.currenttoken.Kind == tokClass ||
-			p.currenttoken.Kind == tokAttribute {
+		if p.token.Kind == tokId ||
+			p.token.Kind == tokClass ||
+			p.token.Kind == tokAttribute {
 
 			if tag, ok := parent.(*Tag); ok {
-				attr := p.expect(p.currenttoken.Kind)
+				attr := p.expect(p.token.Kind)
 				cond := attr.Data["Condition"]
 
 				switch attr.Kind {
@@ -240,16 +240,16 @@ func (p *Parser) parseIf() *Condition {
 	cnd.SourcePosition = p.pos()
 
 readmore:
-	switch p.currenttoken.Kind {
+	switch p.token.Kind {
 	case tokIndent:
 		cnd.Positive = p.parseBlock(cnd)
 		goto readmore
 	case tokElse:
 		p.expect(tokElse)
-		if p.currenttoken.Kind == tokIf {
+		if p.token.Kind == tokIf {
 			cnd.Negative = newBlock()
 			cnd.Negative.push(p.parseIf())
-		} else if p.currenttoken.Kind == tokIndent {
+		} else if p.token.Kind == tokIndent {
 			cnd.Negative = p.parseBlock(cnd)
 		} else {
 			panic("Unexpected token!")
@@ -267,7 +267,7 @@ func (p *Parser) parseEach() *Each {
 	ech.X = tok.Data["X"]
 	ech.Y = tok.Data["Y"]
 
-	if p.currenttoken.Kind == tokIndent {
+	if p.token.Kind == tokIndent {
 		ech.Block = p.parseBlock(ech)
 	}
 
@@ -297,7 +297,7 @@ func (p *Parser) parseNamedBlock() *Block {
 		block.Modifier = NamedBlockPrepend
 	}
 
-	if p.currenttoken.Kind == tokIndent {
+	if p.token.Kind == tokIndent {
 		block.Block = *(p.parseBlock(nil))
 	}
 
@@ -323,7 +323,7 @@ func (p *Parser) parseComment() *Comment {
 	cmnt.SourcePosition = p.pos()
 	cmnt.Silent = tok.Data["Mode"] == "silent"
 
-	if p.currenttoken.Kind == tokIndent {
+	if p.token.Kind == tokIndent {
 		cmnt.Block = p.parseBlock(cmnt)
 	}
 
@@ -356,7 +356,7 @@ func (p *Parser) parseTag() *Tag {
 	}
 
 readmore:
-	switch p.currenttoken.Kind {
+	switch p.token.Kind {
 	case tokIndent:
 		if tag.IsRawText() {
 			p.scanner.readRaw = true
@@ -392,7 +392,7 @@ readmore:
 		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], attr.Data["Mode"] == "raw", ""})
 		goto readmore
 	case tokText:
-		if p.currenttoken.Data["Mode"] != "piped" {
+		if p.token.Data["Mode"] != "piped" {
 			ensureBlock()
 			tag.Block.pushFront(p.parseText())
 			goto readmore
