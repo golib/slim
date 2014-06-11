@@ -18,14 +18,14 @@ type Parser struct {
 	namedBlocks map[string]*NamedBlock
 }
 
-func newParser(rdr io.Reader) *Parser {
+func newParser(r io.Reader) *Parser {
 	p := new(Parser)
-	p.scanner = newScanner(rdr)
+	p.scanner = newScanner(r)
 	p.namedBlocks = make(map[string]*NamedBlock)
 	return p
 }
 
-func StringParser(input string) (*Parser, error) {
+func NewStringParser(input string) (*Parser, error) {
 	return newParser(bytes.NewReader([]byte(input))), nil
 }
 

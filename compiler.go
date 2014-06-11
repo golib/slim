@@ -118,7 +118,7 @@ func (c *Compiler) Parse(input string) (err error) {
 		}
 	}()
 
-	parser, err := parser.StringParser(input)
+	parser, err := parser.NewStringParser(input)
 
 	if err != nil {
 		return
