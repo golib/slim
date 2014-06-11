@@ -31,7 +31,6 @@ func NewStringParser(input string) (*Parser, error) {
 
 func NewFileParser(filename string) (*Parser, error) {
 	data, err := ioutil.ReadFile(filename)
-
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +62,8 @@ func (p *Parser) Parse() *Block {
 	}()
 
 	block := newBlock()
-	p.advance()
+
+	p.scanToken()
 
 	for {
 		if p.token == nil || p.token.Kind == tokEOF {
@@ -71,7 +71,7 @@ func (p *Parser) Parse() *Block {
 		}
 
 		if p.token.Kind == tokBlank {
-			p.advance()
+			p.scanToken()
 			continue
 		}
 
@@ -168,11 +168,11 @@ func (p *Parser) expect(typ rune) *token {
 		panic("Unexpected token!")
 	}
 	curtok := p.token
-	p.advance()
+	p.scanToken()
 	return curtok
 }
 
-func (p *Parser) advance() {
+func (p *Parser) scanToken() {
 	p.token = p.scanner.Next()
 }
 
@@ -199,7 +199,7 @@ func (p *Parser) parseBlock(parent Node) *Block {
 		}
 
 		if p.token.Kind == tokBlank {
-			p.advance()
+			p.scanToken()
 			continue
 		}
 
