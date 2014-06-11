@@ -300,7 +300,7 @@ func (s *scanner) scanCondition() *token {
 
 	if matches := relsif.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
-		return &token(tokElseIf, matches[1], nil)
+		return &token{tokElseIf, matches[1], nil}
 	}
 
 	if matches := relse.FindStringSubmatch(s.buffer); len(matches) != 0 {
