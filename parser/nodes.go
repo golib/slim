@@ -198,27 +198,29 @@ func newCondition(exp string) *Condition {
 
 type Each struct {
 	SourcePosition
-	X          string
-	Y          string
+	Key        string
+	Value      string
 	Expression string
 	Block      *Block
 }
 
-func newEach(exp string) *Each {
+func newEach(key, value, expression string) *Each {
 	each := new(Each)
-	each.Expression = exp
+	each.Key = key
+	each.Value = value
+	each.Expression = expression
 	return each
 }
 
 type Assignment struct {
 	SourcePosition
-	X          string
+	Variable   string
 	Expression string
 }
 
-func newAssignment(x, expression string) *Assignment {
+func newAssignment(variable, expression string) *Assignment {
 	assgn := new(Assignment)
-	assgn.X = x
+	assgn.Variable = variable
 	assgn.Expression = expression
 	return assgn
 }

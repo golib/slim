@@ -9,22 +9,6 @@ import (
 	"strings"
 )
 
-type Parser struct {
-	scanner     *scanner
-	parent      *Parser
-	filename    string
-	token       *token
-	result      *Block
-	namedBlocks map[string]*NamedBlock
-}
-
-func newParser(r io.Reader) *Parser {
-	p := new(Parser)
-	p.scanner = newScanner(r)
-	p.namedBlocks = make(map[string]*NamedBlock)
-	return p
-}
-
 func NewStringParser(input string) (*Parser, error) {
 	return newParser(bytes.NewReader([]byte(input))), nil
 }
@@ -38,6 +22,54 @@ func NewFileParser(filename string) (*Parser, error) {
 	parser := newParser(bytes.NewReader(data))
 	parser.filename = filename
 	return parser, nil
+}
+
+type Parser struct {
+	scanner       *scanner
+	parent        *Parser
+	token         *token
+	result        *Block
+	filename      string
+	filepath      string
+	fileextension string
+	namedBlocks   map[string]*NamedBlock
+}
+
+func newParser(r io.Reader) *Parser {
+	p := new(Parser)
+	p.scanner = newScanner(r)
+	p.fileextension = ".html.slim"
+	p.namedBlocks = make(map[string]*NamedBlock)
+	return p
+}
+
+func (p *Parser) SetPath(path string) {
+	p.filepath = path
+	return
+}
+
+func (p *Parser) SetExtension(extension string) {
+	p.fileextension = extension
+	return
+}
+
+func (p *Parser) newFileParser(filename string) *Parser {
+	if len(p.filepath) == 0 {
+		panic("Unable to import/extend " + filename + " with empty filepath.")
+	}
+
+	filename = filepath.Join(p.filepath, filename)
+
+	if !strings.HasSuffix(strings.ToLower(filename), p.fileextension) {
+		filename += p.fileextension
+	}
+
+	parser, err := NewFileParser(filename)
+	if err != nil {
+		panic("Failed to import/extend " + filename + " with error " + err.Error())
+	}
+
+	return parser
 }
 
 func (p *Parser) Parse() *Block {
@@ -114,81 +146,54 @@ func (p *Parser) pos() SourcePosition {
 	return pos
 }
 
-func (p *Parser) parseRelativeFile(filename string) *Parser {
-	if len(p.filename) == 0 {
-		panic("Unable to import or extend " + filename + " in a non filesystem based parser.")
-	}
-
-	filename = filepath.Join(filepath.Dir(p.filename), filename)
-
-	if strings.IndexRune(filepath.Base(filename), '.') < 0 {
-		filename = filename + ".slim"
-	}
-
-	parser, err := NewFileParser(filename)
-	if err != nil {
-		panic("Unable to read " + filename + ", Error: " + string(err.Error()))
-	}
-
-	return parser
-}
-
-func (p *Parser) expect(typ rune) *token {
-	if p.token.Kind != typ {
-		panic("Unexpected token!")
-	}
-	curtok := p.token
-	p.scanToken()
-	return curtok
-}
-
 func (p *Parser) scanToken() {
 	p.token = p.scanner.Next()
 }
 
 func (p *Parser) parseToken() Node {
 	switch p.token.Kind {
+	case tokIndent:
+		return p.parseBlock(nil)
 	case tokDoctype:
 		return p.parseDoctype()
 	case tokComment:
 		return p.parseComment()
-	case tokText:
-		return p.parseText()
-	case tokIf:
-		return p.parseIf()
-	case tokEach:
-		return p.parseEach()
-	case tokImport:
-		return p.parseImport()
 	case tokTag:
 		return p.parseTag()
+	case tokText:
+		return p.parseText()
 	case tokAssignment:
 		return p.parseAssignment()
+	case tokIf:
+		return p.parseCondition()
+	case tokEach:
+		return p.parseEach()
 	case tokNamedBlock:
 		return p.parseNamedBlock()
+	case tokImport:
+		return p.parseImport()
 	case tokExtend:
-		return p.parseExtends()
-	case tokIndent:
-		return p.parseBlock(nil)
+		return p.parseExtend()
 	}
 
 	panic(fmt.Sprintf("Unexpected token: %d", p.token.Kind))
 }
 
-func (p *Parser) parseExtends() *Block {
-	if p.parent != nil {
-		panic("Unable to extend multiple parent templates.")
+func (p *Parser) expectToken(kind rune) *token {
+	if p.token.Kind != kind {
+		panic(fmt.Sprintf("Expect token kind %d, but got %d", kind, p.token.Kind))
 	}
 
-	tok := p.expect(tokExtend)
-	parser := p.parseRelativeFile(tok.Value)
-	parser.Parse()
-	p.parent = parser
-	return newBlock()
+	tok := p.token
+
+	p.scanToken()
+
+	return tok
 }
 
 func (p *Parser) parseBlock(parent Node) *Block {
-	p.expect(tokIndent)
+	p.expectToken(tokIndent)
+
 	block := newBlock()
 	block.SourcePosition = p.pos()
 
@@ -205,86 +210,197 @@ func (p *Parser) parseBlock(parent Node) *Block {
 		if p.token.Kind == tokId ||
 			p.token.Kind == tokClass ||
 			p.token.Kind == tokAttribute {
-
-			if tag, ok := parent.(*Tag); ok {
-				attr := p.expect(p.token.Kind)
-				cond := attr.Data["Condition"]
-
-				switch attr.Kind {
-				case tokId:
-					tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "id", attr.Value, true, cond})
-				case tokClass:
-					tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "class", attr.Value, true, cond})
-				case tokAttribute:
-					tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], attr.Data["Mode"] == "raw", cond})
-				}
-
-				continue
-			} else {
+			tag, ok := parent.(*Tag)
+			if !ok {
 				panic("Conditional attributes must be placed immediately within a parent tag.")
 			}
+
+			attr := p.expectToken(p.token.Kind)
+			cond := attr.Data["Condition"]
+
+			switch attr.Kind {
+			case tokId:
+				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "id", attr.Value, true, cond})
+			case tokClass:
+				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "class", attr.Value, true, cond})
+			case tokAttribute:
+				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], attr.Data["Mode"] == "raw", cond})
+			}
+
+			continue
 		}
 
 		block.push(p.parseToken())
 	}
 
-	p.expect(tokOutdent)
+	p.expectToken(tokOutdent)
 
 	return block
 }
 
-func (p *Parser) parseIf() *Condition {
-	tok := p.expect(tokIf)
-	cnd := newCondition(tok.Value)
-	cnd.SourcePosition = p.pos()
+func (p *Parser) parseDoctype() *Doctype {
+	tok := p.expectToken(tokDoctype)
 
-readmore:
-	switch p.token.Kind {
-	case tokIndent:
-		cnd.Positive = p.parseBlock(cnd)
-		goto readmore
-	case tokElse:
-		p.expect(tokElse)
-		if p.token.Kind == tokIf {
-			cnd.Negative = newBlock()
-			cnd.Negative.push(p.parseIf())
-		} else if p.token.Kind == tokIndent {
-			cnd.Negative = p.parseBlock(cnd)
-		} else {
-			panic("Unexpected token!")
-		}
-		goto readmore
-	}
-
-	return cnd
-}
-
-func (p *Parser) parseEach() *Each {
-	tok := p.expect(tokEach)
-	ech := newEach(tok.Value)
-	ech.SourcePosition = p.pos()
-	ech.X = tok.Data["X"]
-	ech.Y = tok.Data["Y"]
-
-	if p.token.Kind == tokIndent {
-		ech.Block = p.parseBlock(ech)
-	}
-
-	return ech
-}
-
-func (p *Parser) parseImport() *Block {
-	tok := p.expect(tokImport)
-	node := p.parseRelativeFile(tok.Value).Parse()
+	node := newDoctype(tok.Value)
 	node.SourcePosition = p.pos()
 	return node
 }
 
+func (p *Parser) parseComment() *Comment {
+	tok := p.expectToken(tokComment)
+
+	node := newComment(tok.Value)
+	node.SourcePosition = p.pos()
+	node.Silent = tok.Data["Mode"] == "silent"
+
+	if p.token.Kind == tokIndent {
+		node.Block = p.parseBlock(node)
+	}
+
+	return node
+}
+
+func (p *Parser) parseTag() *Tag {
+	tok := p.expectToken(tokTag)
+
+	tag := newTag(tok.Value)
+	tag.SourcePosition = p.pos()
+
+	ensureBlock := func() {
+		if tag.Block == nil {
+			tag.Block = newBlock()
+		}
+	}
+
+readmore:
+	switch p.token.Kind {
+	case tokIndent:
+		if tag.IsRawText() {
+			p.scanner.readRaw = true
+		}
+
+		block := p.parseBlock(tag)
+		if tag.Block == nil {
+			tag.Block = block
+		} else {
+			for _, child := range block.Children {
+				tag.Block.push(child)
+			}
+		}
+	case tokId:
+		id := p.expectToken(tokId)
+		if len(id.Data["Condition"]) > 0 {
+			panic("Conditional attributes(id) must be placed in a block within a tag.")
+		}
+
+		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "id", id.Value, true, ""})
+
+		goto readmore
+	case tokClass:
+		klass := p.expectToken(tokClass)
+		if len(klass.Data["Condition"]) > 0 {
+			panic("Conditional attributes(class) must be placed in a block within a tag.")
+		}
+
+		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "class", klass.Value, true, ""})
+
+		goto readmore
+	case tokAttribute:
+		attr := p.expectToken(tokAttribute)
+		if len(attr.Data["Condition"]) > 0 {
+			panic("Conditional attributes must be placed in a block within a tag.")
+		}
+
+		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], attr.Data["Mode"] == "raw", ""})
+
+		goto readmore
+	case tokText:
+		if p.token.Data["Mode"] != "piped" {
+			ensureBlock()
+
+			tag.Block.pushFront(p.parseText())
+
+			goto readmore
+		}
+	}
+
+	return tag
+}
+
+func (p *Parser) parseText() *Text {
+	tok := p.expectToken(tokText)
+
+	node := newText(tok.Value, tok.Data["Mode"] == "raw")
+	node.SourcePosition = p.pos()
+	return node
+}
+
+func (p *Parser) parseAssignment() *Assignment {
+	tok := p.expectToken(tokAssignment)
+
+	node := newAssignment(tok.Data["Variable"], tok.Value)
+	node.SourcePosition = p.pos()
+	return node
+}
+
+func (p *Parser) parseCondition() *Condition {
+	tok := p.expectToken(tokIf)
+
+	node := newCondition(tok.Value)
+	node.SourcePosition = p.pos()
+
+readmore:
+	switch p.token.Kind {
+	case tokIndent:
+		node.Positive = p.parseBlock(node)
+
+		goto readmore
+	case tokElseIf:
+		p.expectToken(tokElseIf)
+		if p.token.Kind != tokElseIf {
+			panic("Unexpected token!")
+		}
+
+		node.Negative = newBlock()
+		node.Negative.push(p.parseCondition())
+
+		goto readmore
+	case tokElse:
+		p.expectToken(tokElse)
+
+		if p.token.Kind == tokIf {
+			node.Negative = newBlock()
+			node.Negative.push(p.parseCondition())
+		} else if p.token.Kind == tokIndent {
+			node.Negative = p.parseBlock(node)
+		} else {
+			panic("Unexpected token!")
+		}
+
+		goto readmore
+	}
+
+	return node
+}
+
+func (p *Parser) parseEach() *Each {
+	tok := p.expectToken(tokEach)
+
+	node := newEach(tok.Data["Key"], tok.Data["Value"], tok.Value)
+	node.SourcePosition = p.pos()
+
+	if p.token.Kind == tokIndent {
+		node.Block = p.parseBlock(node)
+	}
+
+	return node
+}
+
 func (p *Parser) parseNamedBlock() *Block {
-	tok := p.expect(tokNamedBlock)
+	tok := p.expectToken(tokNamedBlock)
 
 	if p.namedBlocks[tok.Value] != nil {
-		panic("Multiple definitions of named blocks are not permitted. Block " + tok.Value + " has been re defined.")
+		panic("Multiple definitions of named blocks are not permitted. Block " + tok.Value + " has been redefined.")
 	}
 
 	block := newNamedBlock(tok.Value)
@@ -309,94 +425,23 @@ func (p *Parser) parseNamedBlock() *Block {
 	return newBlock()
 }
 
-func (p *Parser) parseDoctype() *Doctype {
-	tok := p.expect(tokDoctype)
-	node := newDoctype(tok.Value)
+func (p *Parser) parseImport() *Block {
+	tok := p.expectToken(tokImport)
+
+	node := p.newFileParser(tok.Value).Parse()
 	node.SourcePosition = p.pos()
 	return node
 }
 
-func (p *Parser) parseComment() *Comment {
-	tok := p.expect(tokComment)
-	cmnt := newComment(tok.Value)
-	cmnt.SourcePosition = p.pos()
-	cmnt.Silent = tok.Data["Mode"] == "silent"
-
-	if p.token.Kind == tokIndent {
-		cmnt.Block = p.parseBlock(cmnt)
+func (p *Parser) parseExtend() *Block {
+	if p.parent != nil {
+		panic("Unable to extend multiple parent templates.")
 	}
 
-	return cmnt
-}
+	tok := p.expectToken(tokExtend)
 
-func (p *Parser) parseText() *Text {
-	tok := p.expect(tokText)
-	node := newText(tok.Value, tok.Data["Mode"] == "raw")
-	node.SourcePosition = p.pos()
-	return node
-}
-
-func (p *Parser) parseAssignment() *Assignment {
-	tok := p.expect(tokAssignment)
-	node := newAssignment(tok.Data["X"], tok.Value)
-	node.SourcePosition = p.pos()
-	return node
-}
-
-func (p *Parser) parseTag() *Tag {
-	tok := p.expect(tokTag)
-	tag := newTag(tok.Value)
-	tag.SourcePosition = p.pos()
-
-	ensureBlock := func() {
-		if tag.Block == nil {
-			tag.Block = newBlock()
-		}
-	}
-
-readmore:
-	switch p.token.Kind {
-	case tokIndent:
-		if tag.IsRawText() {
-			p.scanner.readRaw = true
-		}
-
-		block := p.parseBlock(tag)
-		if tag.Block == nil {
-			tag.Block = block
-		} else {
-			for _, c := range block.Children {
-				tag.Block.push(c)
-			}
-		}
-	case tokId:
-		id := p.expect(tokId)
-		if len(id.Data["Condition"]) > 0 {
-			panic("Conditional attributes must be placed in a block within a tag.")
-		}
-		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "id", id.Value, true, ""})
-		goto readmore
-	case tokClass:
-		cls := p.expect(tokClass)
-		if len(cls.Data["Condition"]) > 0 {
-			panic("Conditional attributes must be placed in a block within a tag.")
-		}
-		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "class", cls.Value, true, ""})
-		goto readmore
-	case tokAttribute:
-		attr := p.expect(tokAttribute)
-		if len(attr.Data["Condition"]) > 0 {
-			panic("Conditional attributes must be placed in a block within a tag.")
-		}
-		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], attr.Data["Mode"] == "raw", ""})
-		goto readmore
-	case tokText:
-		if p.token.Data["Mode"] != "piped" {
-			ensureBlock()
-			tag.Block.pushFront(p.parseText())
-			goto readmore
-		}
-	}
-
-	return tag
+	parser := p.newFileParser(tok.Value)
+	parser.Parse()
+	p.parent = parser
+	return newBlock()
 }

@@ -314,7 +314,7 @@ func (s *scanner) scanCondition() *token {
 func (s *scanner) scanEach() *token {
 	if matches := reach.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
-		return &token{tokEach, matches[3], map[string]string{"X": matches[1], "Y": matches[2]}}
+		return &token{tokEach, matches[3], map[string]string{"Key": matches[1], "Value": matches[2]}}
 	}
 
 	return nil
@@ -323,7 +323,7 @@ func (s *scanner) scanEach() *token {
 func (s *scanner) scanAssignment() *token {
 	if matches := rassignment.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
-		return &token{tokAssignment, matches[2], map[string]string{"X": matches[1]}}
+		return &token{tokAssignment, matches[2], map[string]string{"Variable": matches[1]}}
 	}
 
 	return nil
