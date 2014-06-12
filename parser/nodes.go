@@ -46,9 +46,9 @@ type Doctype struct {
 }
 
 func newDoctype(value string) *Doctype {
-	dt := new(Doctype)
-	dt.Value = value
-	return dt
+	node := new(Doctype)
+	node.Value = value
+	return node
 }
 
 func (d *Doctype) String() string {
@@ -67,24 +67,65 @@ type Comment struct {
 }
 
 func newComment(value string) *Comment {
-	dt := new(Comment)
-	dt.Value = value
-	dt.Block = nil
-	dt.Silent = false
-	return dt
+	node := new(Comment)
+	node.Value = value
+	node.Block = nil
+	node.Silent = false
+	return node
 }
 
 type Text struct {
 	SourcePosition
 	Value string
-	Raw   bool
+	IsRaw bool
 }
 
 func newText(value string, raw bool) *Text {
-	dt := new(Text)
-	dt.Value = value
-	dt.Raw = raw
-	return dt
+	node := new(Text)
+	node.Value = value
+	node.IsRaw = raw
+	return node
+}
+
+type Attribute struct {
+	SourcePosition
+	Name      string
+	Value     string
+	Condition string
+	IsRaw     bool
+}
+
+type Tag struct {
+	SourcePosition
+	Name           string
+	Block          *Block
+	Attributes     []Attribute
+	IsInterpolated bool
+	IsRawHtml      bool
+}
+
+func newTag(name string) *Tag {
+	node := new(Tag)
+	node.Name = name
+	node.Block = nil
+	node.Attributes = make([]Attribute, 0)
+	node.IsInterpolated = false
+	node.IsRawHtml = false
+	return node
+}
+
+func (t *Tag) IsSelfClosing() bool {
+	for _, tag := range selfClosingTags {
+		if tag == t.Name {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (t *Tag) IsRawText() bool {
+	return t.IsRawHtml || t.Name == "style" || t.Name == "script"
 }
 
 type Block struct {
@@ -94,7 +135,7 @@ type Block struct {
 
 func newBlock() *Block {
 	block := new(Block)
-	block.Children = make([]Node, 0)
+	block.Children = make([]Noder, 0)
 	return block
 }
 
@@ -102,7 +143,7 @@ func (b *Block) push(node Noder) {
 	b.Children = append(b.Children, node)
 }
 
-func (b *Block) pushFront(node Noder) {
+func (b *Block) unshift(node Noder) {
 	b.Children = append([]Noder{node}, b.Children...)
 }
 
@@ -112,9 +153,8 @@ func (b *Block) CanInline() bool {
 	}
 
 	allText := true
-
 	for _, child := range b.Children {
-		if txt, ok := child.(*Text); !ok || txt.Raw {
+		if txt, ok := child.(*Text); !ok || txt.IsRaw {
 			allText = false
 			break
 		}
@@ -136,80 +176,22 @@ type NamedBlock struct {
 }
 
 func newNamedBlock(name string) *NamedBlock {
-	bb := new(NamedBlock)
-	bb.Name = name
-	bb.Block.Children = make([]Noder, 0)
-	bb.Modifier = NamedBlockDefault
-	return bb
+	node := new(NamedBlock)
+	node.Name = name
+	node.Block.Children = make([]Noder, 0)
+	node.Modifier = NamedBlockDefault
+	return node
 }
 
-type Attribute struct {
+type Statement struct {
 	SourcePosition
-	Name      string
-	Value     string
-	IsRaw     bool
-	Condition string
-}
-
-type Tag struct {
-	SourcePosition
-	Block          *Block
-	Name           string
-	IsInterpolated bool
-	Attributes     []Attribute
-}
-
-func newTag(name string) *Tag {
-	tag := new(Tag)
-	tag.Block = nil
-	tag.Name = name
-	tag.Attributes = make([]Attribute, 0)
-	tag.IsInterpolated = false
-	return tag
-
-}
-
-func (t *Tag) IsSelfClosing() bool {
-	for _, tag := range selfClosingTags {
-		if tag == t.Name {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (t *Tag) IsRawText() bool {
-	return t.Name == "style" || t.Name == "script"
-}
-
-type Condition struct {
-	SourcePosition
-	Positive   *Block
-	Negative   *Block
 	Expression string
 }
 
-func newCondition(exp string) *Condition {
-	cond := new(Condition)
-	cond.Expression = exp
-	return cond
-}
-
-type Each struct {
-	SourcePosition
-	Key        string
-	Value      string
-	Expression string
-	Block      *Block
-}
-
-func newEach(key, value, expression string) *Each {
-	each := new(Each)
-	each.Key = key
-	each.Value = value
-	each.Expression = expression
-	return each
+func newStatement(expression string) *Statement {
+	node := new(Statement)
+	node.Expression = expression
+	return node
 }
 
 type Assignment struct {
@@ -219,8 +201,37 @@ type Assignment struct {
 }
 
 func newAssignment(variable, expression string) *Assignment {
-	assgn := new(Assignment)
-	assgn.Variable = variable
-	assgn.Expression = expression
-	return assgn
+	node := new(Assignment)
+	node.Variable = variable
+	node.Expression = expression
+	return node
+}
+
+type Condition struct {
+	SourcePosition
+	Positive   *Block
+	Negative   *Block
+	Expression string
+}
+
+func newCondition(expression string) *Condition {
+	node := new(Condition)
+	node.Expression = expression
+	return node
+}
+
+type Range struct {
+	SourcePosition
+	Key        string
+	Value      string
+	Expression string
+	Block      *Block
+}
+
+func newRange(key, value, expression string) *Range {
+	node := new(Range)
+	node.Key = key
+	node.Value = value
+	node.Expression = expression
+	return node
 }

@@ -126,7 +126,7 @@ func (p *Parser) Parse() *Block {
 				}
 			case NamedBlockPrepend:
 				for i := len(ours.Children) - 1; i >= 0; i-- {
-					prev.pushFront(ours.Children[i])
+					prev.unshift(ours.Children[i])
 				}
 			default:
 				prev.Children = ours.Children
@@ -318,7 +318,7 @@ readmore:
 		if p.token.Data["Mode"] != "piped" {
 			ensureBlock()
 
-			tag.Block.pushFront(p.parseText())
+			tag.Block.unshift(p.parseText())
 
 			goto readmore
 		}
@@ -386,7 +386,7 @@ readmore:
 func (p *Parser) parseEach() *Each {
 	tok := p.expectToken(tokEach)
 
-	node := newEach(tok.Data["Key"], tok.Data["Value"], tok.Value)
+	node := newRange(tok.Data["Key"], tok.Data["Value"], tok.Value)
 	node.SourcePosition = p.pos()
 
 	if p.token.Kind == tokIndent {
