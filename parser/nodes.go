@@ -25,7 +25,7 @@ var doctypes = map[string]string{
 	"mobile":       `<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.2//EN" "http://www.openmobilealliance.org/tech/DTD/xhtml-mobile12.dtd">`,
 }
 
-type Node interface {
+type Noder interface {
 	Pos() SourcePosition
 }
 
@@ -89,7 +89,7 @@ func newText(value string, raw bool) *Text {
 
 type Block struct {
 	SourcePosition
-	Children []Node
+	Children []Noder
 }
 
 func newBlock() *Block {
@@ -98,12 +98,12 @@ func newBlock() *Block {
 	return block
 }
 
-func (b *Block) push(node Node) {
+func (b *Block) push(node Noder) {
 	b.Children = append(b.Children, node)
 }
 
-func (b *Block) pushFront(node Node) {
-	b.Children = append([]Node{node}, b.Children...)
+func (b *Block) pushFront(node Noder) {
+	b.Children = append([]Noder{node}, b.Children...)
 }
 
 func (b *Block) CanInline() bool {
@@ -138,7 +138,7 @@ type NamedBlock struct {
 func newNamedBlock(name string) *NamedBlock {
 	bb := new(NamedBlock)
 	bb.Name = name
-	bb.Block.Children = make([]Node, 0)
+	bb.Block.Children = make([]Noder, 0)
 	bb.Modifier = NamedBlockDefault
 	return bb
 }

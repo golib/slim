@@ -150,7 +150,7 @@ func (p *Parser) scanToken() {
 	p.token = p.scanner.Next()
 }
 
-func (p *Parser) parseToken() Node {
+func (p *Parser) parseToken() Noder {
 	switch p.token.Kind {
 	case tokIndent:
 		return p.parseBlock(nil)
@@ -191,7 +191,7 @@ func (p *Parser) expectToken(kind rune) *token {
 	return tok
 }
 
-func (p *Parser) parseBlock(parent Node) *Block {
+func (p *Parser) parseBlock(parent Noder) *Block {
 	p.expectToken(tokIndent)
 
 	block := newBlock()
