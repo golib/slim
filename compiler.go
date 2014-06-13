@@ -397,7 +397,7 @@ func (c *Compiler) visitTag(tag *parser.Tag) {
 		}
 	}
 
-	if tag.IsSelfClosing() {
+	if tag.IsAutoclose() {
 		c.write(` />`)
 	} else {
 		c.write(`>`)
