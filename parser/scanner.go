@@ -12,23 +12,23 @@ import (
 
 const (
 	tokEOF = -(iota + 1)
-	tokDoctype
-	tokComment
+	tokBlank
 	tokIndent
 	tokOutdent
-	tokBlank
+	tokDoctype
+	tokComment
+	tokText
+	tokTag
 	tokId
 	tokClass
-	tokTag
-	tokText
 	tokAttribute
+	tokAssignment
 	tokIf
 	tokElseIf
 	tokElse
-	tokEach
-	tokAssignment
-	tokImport
+	tokRange
 	tokNamedBlock
+	tokImport
 	tokExtend
 )
 
@@ -39,22 +39,22 @@ const (
 )
 
 var (
-	rindent     = regexp.MustCompile(`^(\s+)`)
-	rdoctype    = regexp.MustCompile(`^(!!!|doctype)\s*(.*)`)
-	reach       = regexp.MustCompile(`^each\s+(\$[\w0-9\-_]*)(?:\s*,\s*(\$[\w0-9\-_]*))?\s+in\s+(.+)$`)
-	rif         = regexp.MustCompile(`^if\s*(.+)$`)
-	relse       = regexp.MustCompile(`^else\s*`)
-	relsif      = regexp.MustCompile(`^elsif\s*(.+)$`)
-	rassignment = regexp.MustCompile(`^(\$[\w0-9\-_]*)?\s*=\s*(.+)$`)
-	rcomment    = regexp.MustCompile(`^\/\/(-)?\s*(.*)$`)
+	rindent     = regexp.MustCompile(`^([ \t]*)`)
+	rdoctype    = regexp.MustCompile(`^(?:!|doctype)\s+(.*)`)
+	rcomment    = regexp.MustCompile(`^\/(-)?\s*(.*)$`)
+	rtext       = regexp.MustCompile(`^(\|)? ?(.*)$`)
+	rtag        = regexp.MustCompile(`^(\w[-:\w]*)`)
 	rid         = regexp.MustCompile(`^#([\w-]+)(?:\s*\?\s*(.*)$)?`)
 	rclass      = regexp.MustCompile(`^\.([\w-]+)(?:\s*\?\s*(.*)$)?`)
 	rattribute  = regexp.MustCompile(`^\[([\w\-]+)\s*(?:=\s*(\"([^\"\\]*)\"|([^\]]+)))?\](?:\s*\?\s*(.*)$)?`)
+	rassignment = regexp.MustCompile(`^(\$[\w0-9\-_]*)?\s*=\s*(.+)$`)
+	rif         = regexp.MustCompile(`^if\s*(.+)$`)
+	relsif      = regexp.MustCompile(`^elsif\s*(.+)$`)
+	relse       = regexp.MustCompile(`^else\s*`)
+	rrange      = regexp.MustCompile(`^each\s+(\$[\w0-9\-_]*)(?:\s*,\s*(\$[\w0-9\-_]*))?\s+in\s+(.+)$`)
+	rblock      = regexp.MustCompile(`^block\s+(?:(append|prepend)\s+)?([0-9a-zA-Z_\-\. \/]*)$`)
 	rimport     = regexp.MustCompile(`^import\s+([0-9a-zA-Z_\-\. \/]*)$`)
 	rextend     = regexp.MustCompile(`^extend\s+([0-9a-zA-Z_\-\. \/]*)$`)
-	rblock      = regexp.MustCompile(`^block\s+(?:(append|prepend)\s+)?([0-9a-zA-Z_\-\. \/]*)$`)
-	rtag        = regexp.MustCompile(`^(\w[-:\w]*)`)
-	rtext       = regexp.MustCompile(`^(\|)? ?(.*)$`)
 )
 
 type token struct {
@@ -68,11 +68,11 @@ type scanner struct {
 	indents *list.List
 	stash   *list.List
 
-	state  int32
 	buffer string
+	line   int
+	column int
+	state  int32
 
-	line            int
-	column          int
 	lastTokenLine   int
 	lastTokenColumn int
 	lastTokenSize   int
@@ -85,9 +85,9 @@ func newScanner(r io.Reader) *scanner {
 	s.reader = bufio.NewReader(r)
 	s.indents = list.New()
 	s.stash = list.New()
-	s.state = scnNewLine
 	s.line = -1
 	s.column = 0
+	s.state = scnNewLine
 
 	return s
 }
@@ -139,7 +139,7 @@ func (s *scanner) Next() *token {
 			return tok
 		}
 
-		if tok := s.scanEach(); tok != nil {
+		if tok := s.scanRange(); tok != nil {
 			return tok
 		}
 
@@ -242,32 +242,37 @@ func (s *scanner) scanIndent() *token {
 
 	var head *list.Element
 	for head = s.indents.Front(); head != nil; head = head.Next() {
-		value := head.Value.(*regexp.Regexp)
+		rvalue := head.Value.(*regexp.Regexp)
 
-		if match := value.FindString(s.buffer); len(match) != 0 {
-			s.consume(len(match))
-		} else {
+		match := rvalue.FindString(s.buffer)
+		if len(match) == 0 {
 			break
 		}
+
+		s.consume(len(match))
 	}
 
 	newIndent := rindent.FindString(s.buffer)
 
 	if len(newIndent) != 0 && head == nil {
 		s.indents.PushBack(regexp.MustCompile(regexp.QuoteMeta(newIndent)))
+
 		s.consume(len(newIndent))
+
 		return &token{tokIndent, newIndent, nil}
 	}
 
 	if len(newIndent) == 0 && head != nil {
 		for head != nil {
 			next := head.Next()
+
 			s.indents.Remove(head)
 			if next == nil {
 				return &token{tokOutdent, "", nil}
-			} else {
-				s.stash.PushBack(&token{tokOutdent, "", nil})
 			}
+
+			s.stash.PushBack(&token{tokOutdent, "", nil})
+
 			head = next
 		}
 	}
@@ -286,6 +291,7 @@ func (s *scanner) scanDoctype() *token {
 		}
 
 		s.consume(len(matches[0]))
+
 		return &token{tokDoctype, matches[2], nil}
 	}
 
@@ -311,10 +317,10 @@ func (s *scanner) scanCondition() *token {
 	return nil
 }
 
-func (s *scanner) scanEach() *token {
-	if matches := reach.FindStringSubmatch(s.buffer); len(matches) != 0 {
+func (s *scanner) scanRange() *token {
+	if matches := rrange.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
-		return &token{tokEach, matches[3], map[string]string{"Key": matches[1], "Value": matches[2]}}
+		return &token{tokRange, matches[3], map[string]string{"Key": matches[1], "Value": matches[2]}}
 	}
 
 	return nil

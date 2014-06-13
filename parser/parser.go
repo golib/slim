@@ -166,8 +166,8 @@ func (p *Parser) parseToken() Noder {
 		return p.parseAssignment()
 	case tokIf:
 		return p.parseCondition()
-	case tokEach:
-		return p.parseEach()
+	case tokRange:
+		return p.parseRange()
 	case tokNamedBlock:
 		return p.parseNamedBlock()
 	case tokImport:
@@ -220,11 +220,11 @@ func (p *Parser) parseBlock(parent Noder) *Block {
 
 			switch attr.Kind {
 			case tokId:
-				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "id", attr.Value, true, cond})
+				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "id", attr.Value, cond, true})
 			case tokClass:
-				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "class", attr.Value, true, cond})
+				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "class", attr.Value, cond, true})
 			case tokAttribute:
-				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], attr.Data["Mode"] == "raw", cond})
+				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], cond, attr.Data["Mode"] == "raw"})
 			}
 
 			continue
@@ -241,7 +241,7 @@ func (p *Parser) parseBlock(parent Noder) *Block {
 func (p *Parser) parseDoctype() *Doctype {
 	tok := p.expectToken(tokDoctype)
 
-	node := newDoctype(tok.Value)
+	node := newDoctype(tok.Value, "xhtml")
 	node.SourcePosition = p.pos()
 	return node
 }
@@ -293,7 +293,7 @@ readmore:
 			panic("Conditional attributes(id) must be placed in a block within a tag.")
 		}
 
-		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "id", id.Value, true, ""})
+		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "id", id.Value, "", true})
 
 		goto readmore
 	case tokClass:
@@ -302,7 +302,7 @@ readmore:
 			panic("Conditional attributes(class) must be placed in a block within a tag.")
 		}
 
-		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "class", klass.Value, true, ""})
+		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "class", klass.Value, "", true})
 
 		goto readmore
 	case tokAttribute:
@@ -311,7 +311,7 @@ readmore:
 			panic("Conditional attributes must be placed in a block within a tag.")
 		}
 
-		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], attr.Data["Mode"] == "raw", ""})
+		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], "", attr.Data["Mode"] == "raw"})
 
 		goto readmore
 	case tokText:
@@ -383,8 +383,8 @@ readmore:
 	return node
 }
 
-func (p *Parser) parseEach() *Each {
-	tok := p.expectToken(tokEach)
+func (p *Parser) parseRange() *Range {
+	tok := p.expectToken(tokRange)
 
 	node := newRange(tok.Data["Key"], tok.Data["Value"], tok.Value)
 	node.SourcePosition = p.pos()

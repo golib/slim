@@ -1,32 +1,81 @@
 package parser
 
-var selfClosingTags = [...]string{
-	"meta",
-	"img",
-	"link",
-	"input",
-	"source",
-	"area",
-	"base",
-	"col",
-	"br",
-	"hr",
-}
+import (
+	"regexp"
+)
 
-var doctypes = map[string]string{
-	"5":            `<!DOCTYPE html>`,
-	"default":      `<!DOCTYPE html>`,
-	"xml":          `<?xml version="1.0" encoding="utf-8" ?>`,
-	"transitional": `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">`,
-	"strict":       `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">`,
-	"frameset":     `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Frameset//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd">`,
-	"1.1":          `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">`,
-	"basic":        `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML Basic 1.1//EN" "http://www.w3.org/TR/xhtml-basic/xhtml-basic11.dtd">`,
-	"mobile":       `<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.2//EN" "http://www.openmobilealliance.org/tech/DTD/xhtml-mobile12.dtd">`,
-}
+// HTML const
+const (
+	FORMAT_HTML  = "html"
+	FORMAT_XHTML = "xhtml"
+
+	WRAPPER_BOTH = iota
+	WRAPPER_COMMENT
+	WRAPPER_CDATA
+)
+
+var (
+	_XDOCTYPES = map[string]string{
+		"1.1":          `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">`,
+		"5":            `<!DOCTYPE html>`,
+		"html":         `<!DOCTYPE html>`,
+		"strict":       `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">`,
+		"frameset":     `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Frameset//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-frameset.dtd">`,
+		"mobile":       `<!DOCTYPE html PUBLIC "-//WAPFORUM//DTD XHTML Mobile 1.2//EN" "http://www.openmobilealliance.org/tech/DTD/xhtml-mobile12.dtd">`,
+		"basic":        `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML Basic 1.1//EN" "http://www.w3.org/TR/xhtml-basic/xhtml-basic11.dtd">`,
+		"transitional": `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">`,
+	}
+
+	_DOCTYPES = map[string]string{
+		"5":            `<!DOCTYPE html>`,
+		"html":         `<!DOCTYPE html>`,
+		"strict":       `<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">`,
+		"frameset":     `<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Frameset//EN" "http://www.w3.org/TR/html4/frameset.dtd">`,
+		"transitional": `<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">`,
+	}
+
+	_AUTOCLOSES = map[string]bool{
+		"base":     true,
+		"basefont": true,
+		"bgsound":  true,
+		"link":     true,
+		"meta":     true,
+		"area":     true,
+		"br":       true,
+		"embed":    true,
+		"img":      true,
+		"keygen":   true,
+		"wbr":      true,
+		"input":    true,
+		"menuitem": true,
+		"param":    true,
+		"source":   true,
+		"track":    true,
+		"hr":       true,
+		"col":      true,
+		"frame":    true,
+	}
+)
 
 type Noder interface {
 	Pos() SourcePosition
+}
+
+type Wrapper struct {
+	L string
+	R string
+}
+
+func NewWrapper() *Wrapper {
+	return &Wrapper{"<!--\n//<![CDATA[\n", "\n//]]>\n//-->"}
+}
+
+func NewCommentWrapper() *Wrapper {
+	return &Wrapper{"<!--\n", "\n//-->"}
+}
+
+func NewCdataWrapper() *Wrapper {
+	return &Wrapper{"\n//<![CDATA[\n", "\n//]]>\n"}
 }
 
 type SourcePosition struct {
@@ -42,21 +91,58 @@ func (s *SourcePosition) Pos() SourcePosition {
 
 type Doctype struct {
 	SourcePosition
-	Value string
+	Value  string
+	Format string
 }
 
-func newDoctype(value string) *Doctype {
+func newDoctype(value, format string) *Doctype {
 	node := new(Doctype)
 	node.Value = value
+	node.Format = format
 	return node
 }
 
+// returns the actual string of doctype shortcut.
 func (d *Doctype) String() string {
-	if defined := doctypes[d.Value]; len(defined) != 0 {
-		return defined
+	var (
+		dt   = ""
+		ok   = false
+		rxml = regexp.MustCompile(`^xml(\s+(.+?))?$`)
+	)
+
+	if rxml.MatchString(d.Value) {
+		if d.Format == FORMAT_HTML {
+			panic("Invalid xml directive with html format")
+		}
+
+		encoding := rxml.FindAllString(d.Value, 1)
+		if len(encoding) == 1 {
+			encoding = append(encoding, "utf-8")
+		}
+
+		dt = `<?xml version="1.0" encoding="` + encoding[1] + `" ?>`
+		ok = true
+	} else {
+		switch d.Format {
+		case FORMAT_HTML:
+			dt, ok = _DOCTYPES[d.Value]
+		case FORMAT_XHTML:
+			dt, ok = _XDOCTYPES[d.Value]
+		}
 	}
 
-	return `<!DOCTYPE ` + d.Value + `>`
+	if ok == false {
+		switch d.Format {
+		case FORMAT_HTML:
+			dt = _DOCTYPES["5"]
+		case FORMAT_XHTML:
+			dt = _XDOCTYPES["5"]
+		default:
+			dt = _DOCTYPES["5"]
+		}
+	}
+
+	return dt
 }
 
 type Comment struct {
@@ -114,14 +200,9 @@ func newTag(name string) *Tag {
 	return node
 }
 
-func (t *Tag) IsSelfClosing() bool {
-	for _, tag := range selfClosingTags {
-		if tag == t.Name {
-			return true
-		}
-	}
-
-	return false
+// Whether is the tag autoclose?
+func (t *Tag) IsAutoclose() bool {
+	return _AUTOCLOSES[t.Name]
 }
 
 func (t *Tag) IsRawText() bool {
