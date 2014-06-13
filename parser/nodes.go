@@ -61,6 +61,17 @@ type Noder interface {
 	Pos() SourcePosition
 }
 
+type SourcePosition struct {
+	Line        int
+	Column      int
+	Filename    string
+	TokenLength int
+}
+
+func (s *SourcePosition) Pos() SourcePosition {
+	return *s
+}
+
 type Wrapper struct {
 	L string
 	R string
@@ -76,17 +87,6 @@ func NewCommentWrapper() *Wrapper {
 
 func NewCdataWrapper() *Wrapper {
 	return &Wrapper{"\n//<![CDATA[\n", "\n//]]>\n"}
-}
-
-type SourcePosition struct {
-	Line        int
-	Column      int
-	Filename    string
-	TokenLength int
-}
-
-func (s *SourcePosition) Pos() SourcePosition {
-	return *s
 }
 
 type Doctype struct {
