@@ -50,7 +50,7 @@ type Compiler struct {
 	// Compiler options
 	Options
 	filename     string
-	node         parser.Node
+	node         parser.Noder
 	indentLevel  int
 	newline      bool
 	buffer       *bytes.Buffer
@@ -211,7 +211,7 @@ func (c *Compiler) CompileString() (string, error) {
 	return result, nil
 }
 
-func (c *Compiler) visit(node parser.Node) {
+func (c *Compiler) visit(node parser.Noder) {
 	defer func() {
 		if r := recover(); r != nil {
 			if rs, ok := r.(string); ok && rs[:len("Slim Error")] == "Slim Error" {
@@ -241,8 +241,8 @@ func (c *Compiler) visit(node parser.Node) {
 		c.visitText(node.(*parser.Text))
 	case *parser.Condition:
 		c.visitCondition(node.(*parser.Condition))
-	case *parser.Each:
-		c.visitEach(node.(*parser.Each))
+	case *parser.Range:
+		c.visitEach(node.(*parser.Range))
 	case *parser.Assignment:
 		c.visitAssignment(node.(*parser.Assignment))
 	}
@@ -315,22 +315,22 @@ func (c *Compiler) visitCondition(condition *parser.Condition) {
 	c.write(`{{end}}`)
 }
 
-func (c *Compiler) visitEach(each *parser.Each) {
+func (c *Compiler) visitEach(each *parser.Range) {
 	if each.Block == nil {
 		return
 	}
 
-	if len(each.Y) == 0 {
-		c.write(`{{range ` + each.X + ` := ` + c.visitRawInterpolation(each.Expression) + `}}`)
+	if len(each.Value) == 0 {
+		c.write(`{{range ` + each.Key + ` := ` + c.visitRawInterpolation(each.Expression) + `}}`)
 	} else {
-		c.write(`{{range ` + each.X + `, ` + each.Y + ` := ` + c.visitRawInterpolation(each.Expression) + `}}`)
+		c.write(`{{range ` + each.Key + `, ` + each.Value + ` := ` + c.visitRawInterpolation(each.Expression) + `}}`)
 	}
 	c.visitBlock(each.Block)
 	c.write(`{{end}}`)
 }
 
 func (c *Compiler) visitAssignment(assgn *parser.Assignment) {
-	c.write(`{{` + assgn.X + ` := ` + c.visitRawInterpolation(assgn.Expression) + `}}`)
+	c.write(`{{` + assgn.Variable + ` := ` + c.visitRawInterpolation(assgn.Expression) + `}}`)
 }
 
 func (c *Compiler) visitTag(tag *parser.Tag) {
