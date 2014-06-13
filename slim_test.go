@@ -178,7 +178,7 @@ func Benchmark_Compile(b *testing.B) {
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		cmp.CompileString()
+		cmp.String()
 	}
 }
 

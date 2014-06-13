@@ -32,10 +32,59 @@ var builtinFunctions = [...]string{
 	"unescaped",
 }
 
+var (
+	rdelimiter   = regexp.MustCompile(`\{\{(.*?)\}\}`)
+	rinterpolate = regexp.MustCompile(`#\{(.*?)\}`)
+)
+
+type Options struct {
+	// Setting if pretty printing is enabled.
+	// Pretty printing ensures that the output html is properly indented and in human readable form.
+	// If disabled, produced HTML is compact. This might be more suitable in production environments.
+	// Default: true
+	Pretty bool
+	// Setting if line number emitting is enabled
+	// In this form, Slim emits line number comments in the output template. It is usable in debugging environments.
+	// Default: false
+	LineNumbers bool
+}
+
+var DefaultOptions = Options{true, false}
+
+// Parses and compiles the supplied slim template string.
+// Returns corresponding Go Template (html/templates) instance.
+// Necessary runtime functions will be injected and the template will be ready to be executed.
+func Compile(input string, options Options) (*template.Template, error) {
+	compiler := New()
+	compiler.Options = options
+
+	err := compiler.Parse(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return compiler.CompileWithFile()
+}
+
+// Parses and compiles the contents of supplied filename.
+// Returns corresponding Go Template (html/templates) instance.
+// Necessary runtime functions will be injected and the template will be ready to be executed.
+func CompileFile(filename string, options Options) (*template.Template, error) {
+	compiler := New()
+	compiler.Options = options
+
+	err := compiler.ParseFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	return compiler.CompileWithFile()
+}
+
 // Compiler is the main interface of Slim Template Engine.
 // In order to use an Slim template, it is required to create a Compiler and
 // compile an Slim source to native Go template.
-//	compiler := slim.New()
+// 	compiler := slim.New()
 // 	// Parse the input file
 //	err := compiler.ParseFile("./input.slim")
 //	if err == nil {
@@ -49,11 +98,11 @@ var builtinFunctions = [...]string{
 type Compiler struct {
 	// Compiler options
 	Options
-	filename     string
 	node         parser.Noder
-	indentLevel  int
-	newline      bool
 	buffer       *bytes.Buffer
+	filename     string
+	newline      bool
+	level        int
 	tempvarIndex int
 }
 
@@ -62,52 +111,10 @@ func New() *Compiler {
 	compiler := new(Compiler)
 	compiler.filename = ""
 	compiler.tempvarIndex = 0
-	compiler.PrettyPrint = true
+	compiler.Pretty = true
 	compiler.Options = DefaultOptions
 
 	return compiler
-}
-
-type Options struct {
-	// Setting if pretty printing is enabled.
-	// Pretty printing ensures that the output html is properly indented and in human readable form.
-	// If disabled, produced HTML is compact. This might be more suitable in production environments.
-	// Default: true
-	PrettyPrint bool
-	// Setting if line number emitting is enabled
-	// In this form, Slim emits line number comments in the output template. It is usable in debugging environments.
-	// Default: false
-	LineNumbers bool
-}
-
-var DefaultOptions = Options{true, false}
-
-// Parses and compiles the supplied slim template string. Returns corresponding Go Template (html/templates) instance.
-// Necessary runtime functions will be injected and the template will be ready to be executed.
-func Compile(input string, options Options) (*template.Template, error) {
-	comp := New()
-	comp.Options = options
-
-	err := comp.Parse(input)
-	if err != nil {
-		return nil, err
-	}
-
-	return comp.Compile()
-}
-
-// Parses and compiles the contents of supplied filename. Returns corresponding Go Template (html/templates) instance.
-// Necessary runtime functions will be injected and the template will be ready to be executed.
-func CompileFile(filename string, options Options) (*template.Template, error) {
-	comp := New()
-	comp.Options = options
-
-	err := comp.ParseFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	return comp.Compile()
 }
 
 // Parse given raw slim template string.
@@ -119,7 +126,6 @@ func (c *Compiler) Parse(input string) (err error) {
 	}()
 
 	parser, err := parser.NewStringParser(input)
-
 	if err != nil {
 		return
 	}
@@ -137,7 +143,6 @@ func (c *Compiler) ParseFile(filename string) (err error) {
 	}()
 
 	parser, err := parser.NewFileParser(filename)
-
 	if err != nil {
 		return
 	}
@@ -147,38 +152,10 @@ func (c *Compiler) ParseFile(filename string) (err error) {
 	return
 }
 
-// Compile slim and create a Go Template (html/templates) instance.
-// Necessary runtime functions will be injected and the template will be ready to be executed.
-func (c *Compiler) Compile() (*template.Template, error) {
-	return c.CompileWithName(filepath.Base(c.filename))
-}
-
-// Same as Compile but allows to specify a name for the template
-func (c *Compiler) CompileWithName(name string) (*template.Template, error) {
-	return c.CompileWithTemplate(template.New(name))
-}
-
-// Same as Compile but allows to specify a template
-func (c *Compiler) CompileWithTemplate(t *template.Template) (*template.Template, error) {
-	data, err := c.CompileString()
-
-	if err != nil {
-		return nil, err
-	}
-
-	tpl, err := t.Funcs(funcMap).Parse(data)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return tpl, nil
-}
-
 // Compile slim and write the Go Template source into given io.Writer instance
-// You would not be using this unless debugging / checking the output. Please use Compile
-// method to obtain a template instance directly.
-func (c *Compiler) CompileWriter(out io.Writer) (err error) {
+// You would not be using this unless debugging / checking the output.
+// Please use Compile method to obtain a template instance directly.
+func (c *Compiler) Compile(out io.Writer) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.New(r.(string))
@@ -197,18 +174,44 @@ func (c *Compiler) CompileWriter(out io.Writer) (err error) {
 }
 
 // Compile template and return the Go Template source
-// You would not be using this unless debugging / checking the output. Please use Compile
-// method to obtain a template instance directly.
-func (c *Compiler) CompileString() (string, error) {
+// You would not be using this unless debugging / checking the output.
+// Please use Compile method to obtain a template instance directly.
+func (c *Compiler) String() (string, error) {
 	var buf bytes.Buffer
 
-	if err := c.CompileWriter(&buf); err != nil {
+	if err := c.Compile(&buf); err != nil {
 		return "", err
 	}
 
 	result := buf.String()
 
 	return result, nil
+}
+
+// Compile slim and create a Go Template (html/templates) instance.
+// Necessary runtime functions will be injected and the template will be ready to be executed.
+func (c *Compiler) CompileWithFile() (*template.Template, error) {
+	return c.CompileWithName(filepath.Base(c.filename))
+}
+
+// Same as Compile but allows to specify a name for the template
+func (c *Compiler) CompileWithName(name string) (*template.Template, error) {
+	return c.CompileWithTemplate(template.New(name))
+}
+
+// Same as Compile but allows to specify a template
+func (c *Compiler) CompileWithTemplate(t *template.Template) (*template.Template, error) {
+	data, err := c.String()
+	if err != nil {
+		return nil, err
+	}
+
+	tpl, err := t.Funcs(funcMap).Parse(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return tpl, nil
 }
 
 func (c *Compiler) visit(node parser.Noder) {
@@ -229,8 +232,6 @@ func (c *Compiler) visit(node parser.Noder) {
 	}()
 
 	switch node.(type) {
-	case *parser.Block:
-		c.visitBlock(node.(*parser.Block))
 	case *parser.Doctype:
 		c.visitDoctype(node.(*parser.Doctype))
 	case *parser.Comment:
@@ -239,12 +240,14 @@ func (c *Compiler) visit(node parser.Noder) {
 		c.visitTag(node.(*parser.Tag))
 	case *parser.Text:
 		c.visitText(node.(*parser.Text))
+	case *parser.Block:
+		c.visitBlock(node.(*parser.Block))
 	case *parser.Condition:
 		c.visitCondition(node.(*parser.Condition))
-	case *parser.Range:
-		c.visitEach(node.(*parser.Range))
 	case *parser.Assignment:
 		c.visitAssignment(node.(*parser.Assignment))
+	case *parser.Range:
+		c.visitRange(node.(*parser.Range))
 	}
 }
 
@@ -253,7 +256,7 @@ func (c *Compiler) write(value string) {
 }
 
 func (c *Compiler) indent(offset int, newline bool) {
-	if !c.PrettyPrint {
+	if !c.Pretty {
 		return
 	}
 
@@ -261,7 +264,7 @@ func (c *Compiler) indent(offset int, newline bool) {
 		c.write("\n")
 	}
 
-	for i := 0; i < c.indentLevel+offset; i++ {
+	for i := 0; i < c.level+offset; i++ {
 		c.write("\t")
 	}
 }
@@ -273,16 +276,6 @@ func (c *Compiler) tempvar() string {
 
 func (c *Compiler) escape(input string) string {
 	return strings.Replace(strings.Replace(input, `\`, `\\`, -1), `"`, `\"`, -1)
-}
-
-func (c *Compiler) visitBlock(block *parser.Block) {
-	for _, node := range block.Children {
-		if _, ok := node.(*parser.Text); !block.CanInline() && ok {
-			c.indent(0, true)
-		}
-
-		c.visit(node)
-	}
 }
 
 func (c *Compiler) visitDoctype(doctype *parser.Doctype) {
@@ -303,34 +296,6 @@ func (c *Compiler) visitComment(comment *parser.Comment) {
 		c.visitBlock(comment.Block)
 		c.write(` -->`)
 	}
-}
-
-func (c *Compiler) visitCondition(condition *parser.Condition) {
-	c.write(`{{if ` + c.visitRawInterpolation(condition.Expression) + `}}`)
-	c.visitBlock(condition.Positive)
-	if condition.Negative != nil {
-		c.write(`{{else}}`)
-		c.visitBlock(condition.Negative)
-	}
-	c.write(`{{end}}`)
-}
-
-func (c *Compiler) visitEach(each *parser.Range) {
-	if each.Block == nil {
-		return
-	}
-
-	if len(each.Value) == 0 {
-		c.write(`{{range ` + each.Key + ` := ` + c.visitRawInterpolation(each.Expression) + `}}`)
-	} else {
-		c.write(`{{range ` + each.Key + `, ` + each.Value + ` := ` + c.visitRawInterpolation(each.Expression) + `}}`)
-	}
-	c.visitBlock(each.Block)
-	c.write(`{{end}}`)
-}
-
-func (c *Compiler) visitAssignment(assgn *parser.Assignment) {
-	c.write(`{{` + assgn.Variable + ` := ` + c.visitRawInterpolation(assgn.Expression) + `}}`)
 }
 
 func (c *Compiler) visitTag(tag *parser.Tag) {
@@ -404,13 +369,13 @@ func (c *Compiler) visitTag(tag *parser.Tag) {
 
 		if tag.Block != nil {
 			if !tag.Block.CanInline() {
-				c.indentLevel++
+				c.level++
 			}
 
 			c.visitBlock(tag.Block)
 
 			if !tag.Block.CanInline() {
-				c.indentLevel--
+				c.level--
 				c.indent(0, true)
 			}
 		}
@@ -419,15 +384,12 @@ func (c *Compiler) visitTag(tag *parser.Tag) {
 	}
 }
 
-var textInterpolateRegexp = regexp.MustCompile(`#\{(.*?)\}`)
-var textEscapeRegexp = regexp.MustCompile(`\{\{(.*?)\}\}`)
-
-func (c *Compiler) visitText(txt *parser.Text) {
-	value := textEscapeRegexp.ReplaceAllStringFunc(txt.Value, func(value string) string {
+func (c *Compiler) visitText(text *parser.Text) {
+	value := rdelimiter.ReplaceAllStringFunc(text.Value, func(value string) string {
 		return `{{"{{"}}` + value[2:len(value)-2] + `{{"}}"}}`
 	})
 
-	value = textInterpolateRegexp.ReplaceAllStringFunc(value, func(value string) string {
+	value = rinterpolate.ReplaceAllStringFunc(value, func(value string) string {
 		return c.visitInterpolation(value[2 : len(value)-1])
 	})
 
@@ -442,18 +404,63 @@ func (c *Compiler) visitText(txt *parser.Text) {
 	}
 }
 
+func (c *Compiler) visitBlock(block *parser.Block) {
+	for _, node := range block.Children {
+		if _, ok := node.(*parser.Text); !block.CanInline() && ok {
+			c.indent(0, true)
+		}
+
+		c.visit(node)
+	}
+}
+
+func (c *Compiler) visitCondition(condition *parser.Condition) {
+	c.write(`{{if ` + c.visitRawInterpolation(condition.Expression) + `}}`)
+
+	c.visitBlock(condition.Positive)
+
+	if condition.Negative != nil {
+		c.write(`{{else}}`)
+
+		c.visitBlock(condition.Negative)
+	}
+
+	c.write(`{{end}}`)
+}
+
+func (c *Compiler) visitAssignment(assignment *parser.Assignment) {
+	c.write(`{{` + assignment.Variable + ` := ` + c.visitRawInterpolation(assignment.Expression) + `}}`)
+}
+
+func (c *Compiler) visitRange(iter *parser.Range) {
+	if iter.Block == nil {
+		return
+	}
+
+	if len(iter.Value) == 0 {
+		c.write(`{{range ` + iter.Key + ` := ` + c.visitRawInterpolation(iter.Expression) + `}}`)
+	} else {
+		c.write(`{{range ` + iter.Key + `, ` + iter.Value + ` := ` + c.visitRawInterpolation(iter.Expression) + `}}`)
+	}
+
+	c.visitBlock(iter.Block)
+
+	c.write(`{{end}}`)
+}
+
 func (c *Compiler) visitInterpolation(value string) string {
 	return `{{` + c.visitRawInterpolation(value) + `}}`
 }
 
 func (c *Compiler) visitRawInterpolation(value string) string {
 	value = strings.Replace(value, "$", "__DOLLAR__", -1)
+
 	expr, err := goParser.ParseExpr(value)
 	if err != nil {
 		panic("Unable to parse expression.")
 	}
-	value = strings.Replace(c.visitExpression(expr), "__DOLLAR__", "$", -1)
-	return value
+
+	return strings.Replace(c.visitExpression(expr), "__DOLLAR__", "$", -1)
 }
 
 func (c *Compiler) visitExpression(outerexpr goAst.Expr) string {
@@ -464,9 +471,9 @@ func (c *Compiler) visitExpression(outerexpr goAst.Expr) string {
 			return ""
 		}
 
-		val := stack.Front().Value.(string)
+		value := stack.Front().Value.(string)
 		stack.Remove(stack.Front())
-		return val
+		return value
 	}
 
 	var exec func(goAst.Expr)

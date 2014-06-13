@@ -322,10 +322,10 @@ Compile slim and create a Go Template (html/templates) instance. Necessary
 runtime functions will be injected and the template will be ready to be
 executed.
 
-#### func (*Compiler) CompileString
+#### func (*Compiler) String
 
 ```go
-func (c *Compiler) CompileString() (string, error)
+func (c *Compiler) String() (string, error)
 ```
 Compile template and return the Go Template source You would not be using this
 unless debugging / checking the output. Please use Compile method to obtain a
