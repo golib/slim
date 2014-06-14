@@ -251,7 +251,12 @@ func (p *Parser) parseComment() *Comment {
 
 	node := newComment(tok.Value)
 	node.SourcePosition = p.pos()
-	node.Silent = tok.Data["Mode"] == "silent"
+	switch tok.Data["Mode"] {
+	case "code":
+		node.Silent = true
+	case "html":
+		node.Wrapper = NewCommentWrapper()
+	}
 
 	if p.token.Kind == tokIndent {
 		node.Block = p.parseBlock(node)

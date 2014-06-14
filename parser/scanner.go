@@ -41,7 +41,7 @@ const (
 var (
 	rindent     = regexp.MustCompile(`^([ \t]*)`)
 	rdoctype    = regexp.MustCompile(`^(?:!|doctype)\s+(.*)`)
-	rcomment    = regexp.MustCompile(`^\/(-)?\s*(.*)$`)
+	rcomment    = regexp.MustCompile(`^\/(!)?\s+(.*)$`)
 	rtext       = regexp.MustCompile(`^(\|)? ?(.*)$`)
 	rtag        = regexp.MustCompile(`^(\w[-:\w]*)`)
 	rid         = regexp.MustCompile(`^#([\w-]+)(?:\s*\?\s*(.*)$)?`)
@@ -337,12 +337,14 @@ func (s *scanner) scanAssignment() *token {
 
 func (s *scanner) scanComment() *token {
 	if matches := rcomment.FindStringSubmatch(s.buffer); len(matches) != 0 {
-		mode := "embed"
-		if len(matches[1]) != 0 {
-			mode = "silent"
+		mode := "code"
+		switch matches[1] {
+		case "!":
+			mode = "html"
 		}
 
 		s.consume(len(matches[0]))
+
 		return &token{tokComment, matches[2], map[string]string{"Mode": mode}}
 	}
 

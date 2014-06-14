@@ -147,15 +147,17 @@ func (d *Doctype) String() string {
 
 type Comment struct {
 	SourcePosition
-	Value  string
-	Block  *Block
-	Silent bool
+	Value   string
+	Block   *Block
+	Wrapper *Wrapper
+	Silent  bool
 }
 
 func newComment(value string) *Comment {
 	node := new(Comment)
 	node.Value = value
 	node.Block = nil
+	node.Wrapper = nil
 	node.Silent = false
 	return node
 }
