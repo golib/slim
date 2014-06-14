@@ -286,13 +286,13 @@ func (s *scanner) scanIndent() *token {
 
 func (s *scanner) scanDoctype() *token {
 	if matches := rdoctype.FindStringSubmatch(s.buffer); len(matches) != 0 {
-		if len(matches[2]) == 0 {
-			matches[2] = "html"
+		if len(matches[1]) == 0 {
+			matches[1] = "html"
 		}
 
 		s.consume(len(matches[0]))
 
-		return &token{tokDoctype, matches[2], nil}
+		return &token{tokDoctype, matches[1], nil}
 	}
 
 	return nil
@@ -445,11 +445,15 @@ func (s *scanner) readline() {
 			panic(err)
 		}
 
-		s.state = scnEOF
-		return
+		if len(buf) == 0 {
+			s.state = scnEOF
+		} else {
+			s.state = scnNewLine
+		}
+	} else {
+		s.state = scnNewLine
 	}
 
-	s.state = scnNewLine
 	s.buffer = strings.TrimRightFunc(buf, unicode.IsSpace)
 	s.line += 1
 	s.column = 0
