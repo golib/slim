@@ -40,8 +40,8 @@ const (
 
 var (
 	rindent     = regexp.MustCompile(`^([ \t]*)`)
-	rdoctype    = regexp.MustCompile(`^(?:!|doctype)\s+(.*)`)
-	rcomment    = regexp.MustCompile(`^\/(!)?\s+(.*)$`)
+	rdoctype    = regexp.MustCompile(`^(?:!|doctype)\s+?(.*)`)
+	rcomment    = regexp.MustCompile(`^(?:\/(!)?\s+?(.*)|\/\s*?\[\s*?if\s+?(.+)\s*?\]\s+?(.*))$`)
 	rtext       = regexp.MustCompile(`^(\|)? ?(.*)$`)
 	rtag        = regexp.MustCompile(`^(\w[-:\w]*)`)
 	rid         = regexp.MustCompile(`^#([\w-]+)(?:\s*\?\s*(.*)$)?`)
@@ -213,8 +213,8 @@ func (s *scanner) scanRaw() *token {
 				if level < 0 {
 					s.stash.PushBack(&token{tokOutdent, "", nil})
 
-					if len(result) > 0 && result[len(result)-1] == '\n' {
-						result = result[:len(result)-1]
+					if len(result) > 0 {
+						result = strings.TrimRightFunc(result, unicode.IsSpace)
 					}
 
 					return &token{tokText, result, map[string]string{"Mode": "raw"}}
@@ -224,10 +224,13 @@ func (s *scanner) scanRaw() *token {
 			if len(result) > 0 {
 				result = result + "\n"
 			}
+
 			for i := 0; i < level; i++ {
 				result += "\t"
 			}
+
 			result = result + s.buffer
+
 			s.consume(len(s.buffer))
 		}
 	}
@@ -298,6 +301,29 @@ func (s *scanner) scanDoctype() *token {
 	return nil
 }
 
+func (s *scanner) scanComment() *token {
+	if matches := rcomment.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		var mode string
+		switch matches[1] {
+		case "":
+			s.readRaw = true
+
+			mode = "code"
+			if len(matches[3]) != 0 {
+				mode = matches[3]
+			}
+		case "!":
+			mode = "html"
+		}
+
+		s.consume(len(matches[0]))
+
+		return &token{tokComment, matches[2], map[string]string{"Mode": mode}}
+	}
+
+	return nil
+}
+
 func (s *scanner) scanCondition() *token {
 	if matches := rif.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
@@ -330,22 +356,6 @@ func (s *scanner) scanAssignment() *token {
 	if matches := rassignment.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
 		return &token{tokAssignment, matches[2], map[string]string{"Variable": matches[1]}}
-	}
-
-	return nil
-}
-
-func (s *scanner) scanComment() *token {
-	if matches := rcomment.FindStringSubmatch(s.buffer); len(matches) != 0 {
-		mode := "code"
-		switch matches[1] {
-		case "!":
-			mode = "html"
-		}
-
-		s.consume(len(matches[0]))
-
-		return &token{tokComment, matches[2], map[string]string{"Mode": mode}}
 	}
 
 	return nil
