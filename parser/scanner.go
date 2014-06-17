@@ -303,14 +303,20 @@ func (s *scanner) scanDoctype() *token {
 
 func (s *scanner) scanComment() *token {
 	if matches := rcomment.FindStringSubmatch(s.buffer); len(matches) != 0 {
-		var mode string
+		var (
+			mode    string
+			content = matches[2]
+		)
 		switch matches[1] {
 		case "":
 			s.readRaw = true
 
 			mode = "code"
+
+			// ie condition comment
 			if len(matches[3]) != 0 {
-				mode = matches[3]
+				mode = "condition"
+				content = matches[4]
 			}
 		case "!":
 			mode = "html"
@@ -318,7 +324,7 @@ func (s *scanner) scanComment() *token {
 
 		s.consume(len(matches[0]))
 
-		return &token{tokComment, matches[2], map[string]string{"Mode": mode}}
+		return &token{tokComment, content, map[string]string{"Mode": mode, "Condition": matches[3]}}
 	}
 
 	return nil
