@@ -256,6 +256,8 @@ func (p *Parser) parseComment() *Comment {
 		node.Silent = true
 	case "html":
 		node.Wrapper = NewCommentWrapper()
+	default:
+		node.Wrapper = NewConditionWrapper(tok.Data["Mode"])
 	}
 
 	if p.token.Kind == tokIndent {
