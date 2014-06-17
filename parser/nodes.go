@@ -89,6 +89,10 @@ func NewCdataWrapper() *Wrapper {
 	return &Wrapper{"\n//<![CDATA[\n", "\n//]]>\n"}
 }
 
+func NewConditionWrapper(condition string) *Wrapper {
+	return &Wrapper{"<!--[if " + condition + "]>\n", "\n<![endif]>\n"}
+}
+
 type Doctype struct {
 	SourcePosition
 	Value  string
