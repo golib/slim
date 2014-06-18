@@ -40,8 +40,8 @@ const (
 
 var (
 	rindent     = regexp.MustCompile(`^([ \t]*)`)
-	rdoctype    = regexp.MustCompile(`^(?:!|doctype)\s+?(.*)`)
-	rcomment    = regexp.MustCompile(`^(?:\/(!)?\s+?(.*)|\/\s*?\[\s*?if\s+?(.+)\s*?\]\s+?(.*))$`)
+	rdoctype    = regexp.MustCompile(`\A(?i:!|doctype)\s+?(.*)\z`)
+	rcomment    = regexp.MustCompile(`\A(?i:\/\s*?\[\s*?if\s+?(.+)\s*?\](.*)?|\/(!)?(\s*)(.*)?)\z`)
 	rtext       = regexp.MustCompile(`^(\|)? ?(.*)$`)
 	rtag        = regexp.MustCompile(`^(\w[-:\w]*)`)
 	rid         = regexp.MustCompile(`^#([\w-]+)(?:\s*\?\s*(.*)$)?`)
@@ -302,29 +302,35 @@ func (s *scanner) scanDoctype() *token {
 }
 
 func (s *scanner) scanComment() *token {
-	if matches := rcomment.FindStringSubmatch(s.buffer); len(matches) != 0 {
+	if matches := rcomment.FindStringSubmatch(s.buffer); len(matches) == 6 {
 		var (
 			mode    string
-			content = matches[2]
+			content = matches[5]
 		)
-		switch matches[1] {
-		case "":
-			s.readRaw = true
 
-			mode = "code"
-
-			// ie condition comment
-			if len(matches[3]) != 0 {
-				mode = "condition"
-				content = matches[4]
+		// ie condition comment
+		if content == "" {
+			mode = "condition"
+			content = matches[2]
+		} else {
+			// we expect comment has at least one whitespace
+			if matches[4] == "" {
+				return nil
 			}
-		case "!":
-			mode = "html"
+
+			switch matches[3] {
+			case "":
+				s.readRaw = true
+
+				mode = "code"
+			case "!":
+				mode = "html"
+			}
 		}
 
 		s.consume(len(matches[0]))
 
-		return &token{tokComment, content, map[string]string{"Mode": mode, "Condition": matches[3]}}
+		return &token{tokComment, content, map[string]string{"Mode": mode, "Condition": content}}
 	}
 
 	return nil
