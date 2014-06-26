@@ -42,7 +42,7 @@ var (
 	rindent     = regexp.MustCompile(`^([ \t]*)`)
 	rdoctype    = regexp.MustCompile(`\A(?i:!|doctype)\s+?(.*)\z`)
 	rcomment    = regexp.MustCompile(`\A(?i:\/\s*?\[\s*?if\s+?(.+)\s*?\](.*)?|\/(!)?(\s*)(.*)?)\z`)
-	rtext       = regexp.MustCompile(`^(\|)? ?(.*)$`)
+	rtext       = regexp.MustCompile(`^(\||')[ \t]+?(.*)$`)
 	rtag        = regexp.MustCompile(`^(\w[-:\w]*)`)
 	rid         = regexp.MustCompile(`^#([\w-]+)(?:\s*\?\s*(.*)$)?`)
 	rclass      = regexp.MustCompile(`^\.([\w-]+)(?:\s*\?\s*(.*)$)?`)
@@ -102,6 +102,10 @@ func (s *scanner) Pos() SourcePosition {
 }
 
 func (s *scanner) Next() *token {
+	if s.state == scnEOF {
+		return &token{tokEOF, "", nil}
+	}
+
 	if s.readRaw {
 		s.readRaw = false
 		return s.scanRaw()
@@ -132,6 +136,14 @@ func (s *scanner) Next() *token {
 		return s.Next()
 	case scnLine:
 		if tok := s.scanDoctype(); tok != nil {
+			return tok
+		}
+
+		if tok := s.scanComment(); tok != nil {
+			return tok
+		}
+
+		if tok := s.scanText(); tok != nil {
 			return tok
 		}
 
@@ -172,14 +184,6 @@ func (s *scanner) Next() *token {
 		}
 
 		if tok := s.scanAttribute(); tok != nil {
-			return tok
-		}
-
-		if tok := s.scanComment(); tok != nil {
-			return tok
-		}
-
-		if tok := s.scanText(); tok != nil {
 			return tok
 		}
 	}
@@ -310,6 +314,7 @@ func (s *scanner) scanComment() *token {
 
 		// ie condition comment
 		if content == "" {
+			s.readRaw = true
 			mode = "condition"
 			content = matches[2]
 		} else {
@@ -321,7 +326,6 @@ func (s *scanner) scanComment() *token {
 			switch matches[3] {
 			case "":
 				s.readRaw = true
-
 				mode = "code"
 			case "!":
 				mode = "html"
@@ -331,6 +335,30 @@ func (s *scanner) scanComment() *token {
 		s.consume(len(matches[0]))
 
 		return &token{tokComment, content, map[string]string{"Mode": mode, "Condition": content}}
+	}
+
+	return nil
+}
+
+func (s *scanner) scanText() *token {
+	if matches := rtext.FindStringSubmatch(s.buffer); len(matches) != 0 {
+		s.readRaw = true
+
+		s.consume(len(matches[0]))
+
+		var (
+			mode = "piped"
+			tail = ""
+		)
+		switch matches[1] {
+		case "|":
+			mode = "piped"
+		case "'":
+			mode = "inline"
+			tail = " "
+		}
+
+		return &token{tokText, matches[2], map[string]string{"Mode": mode, "Tail": tail}}
 	}
 
 	return nil
@@ -436,21 +464,6 @@ func (s *scanner) scanTag() *token {
 	if matches := rtag.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
 		return &token{tokTag, matches[1], nil}
-	}
-
-	return nil
-}
-
-func (s *scanner) scanText() *token {
-	if matches := rtext.FindStringSubmatch(s.buffer); len(matches) != 0 {
-		s.consume(len(matches[0]))
-
-		mode := "inline"
-		if matches[1] == "|" {
-			mode = "piped"
-		}
-
-		return &token{tokText, matches[2], map[string]string{"Mode": mode}}
 	}
 
 	return nil

@@ -95,14 +95,16 @@ func (p *Parser) Parse() *Block {
 
 	block := newBlock()
 
-	for {
-		p.scanToken()
+	p.scanToken()
 
+	for {
 		if p.token == nil || p.token.Kind == tokEOF {
 			break
 		}
 
 		if p.token.Kind == tokBlank {
+			p.scanToken()
+
 			continue
 		}
 
