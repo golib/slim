@@ -38,6 +38,12 @@ const (
 	scnEOF
 )
 
+const (
+	rawText = "text"
+	rawHtml = "html"
+	rawCode = "code"
+)
+
 var (
 	rindent     = regexp.MustCompile(`^([ \t]*)`)
 	rdoctype    = regexp.MustCompile(`\A(?i:!|doctype)\s+?(.*)\z`)
@@ -64,7 +70,8 @@ type token struct {
 }
 
 type scanner struct {
-	reader  *bufio.Reader
+	reader *bufio.Reader
+
 	indents *list.List
 	stash   *list.List
 
@@ -77,7 +84,8 @@ type scanner struct {
 	lastTokenColumn int
 	lastTokenSize   int
 
-	readRaw bool
+	readRaw     bool
+	readRawMode string
 }
 
 func newScanner(r io.Reader) *scanner {
@@ -88,6 +96,7 @@ func newScanner(r io.Reader) *scanner {
 	s.line = -1
 	s.column = 0
 	s.state = scnNewLine
+	s.readRawMode = rawText
 
 	return s
 }
@@ -192,6 +201,10 @@ func (s *scanner) Next() *token {
 }
 
 func (s *scanner) scanRaw() *token {
+	if s.state == scnEOF {
+		return &token{tokEOF, "", nil}
+	}
+
 	result := ""
 	level := 0
 
@@ -200,28 +213,27 @@ func (s *scanner) scanRaw() *token {
 
 		switch s.state {
 		case scnEOF:
-			return &token{tokText, result, map[string]string{"Mode": "raw"}}
+			return &token{tokText, result, map[string]string{"Mode": s.readRawMode}}
 		case scnNewLine:
 			s.state = scnLine
 
 			if tok := s.scanIndent(); tok != nil {
-				if tok.Kind == tokIndent {
+				switch tok.Kind {
+				case tokIndent:
 					level++
-				} else if tok.Kind == tokOutdent {
+				case tokOutdent:
 					level--
-				} else {
-					result = result + "\n"
-					continue
-				}
-
-				if level < 0 {
-					s.stash.PushBack(&token{tokOutdent, "", nil})
-
-					if len(result) > 0 {
-						result = strings.TrimRightFunc(result, unicode.IsSpace)
+					if level < 0 {
+						s.stash.PushBack(&token{tokOutdent, "", nil})
+					} else {
+						s.stash.Remove(s.stash.Front())
 					}
 
-					return &token{tokText, result, map[string]string{"Mode": "raw"}}
+					return s.Next()
+				case tokBlank:
+					result = result + "\n"
+
+					continue
 				}
 			}
 		case scnLine:
@@ -308,13 +320,15 @@ func (s *scanner) scanDoctype() *token {
 func (s *scanner) scanComment() *token {
 	if matches := rcomment.FindStringSubmatch(s.buffer); len(matches) == 6 {
 		var (
-			mode    string
-			content = matches[5]
+			mode      string
+			condition = matches[1]
+			content   = matches[5]
 		)
 
 		// ie condition comment
 		if content == "" {
 			s.readRaw = true
+
 			mode = "condition"
 			content = matches[2]
 		} else {
@@ -326,6 +340,7 @@ func (s *scanner) scanComment() *token {
 			switch matches[3] {
 			case "":
 				s.readRaw = true
+
 				mode = "code"
 			case "!":
 				mode = "html"
@@ -334,7 +349,7 @@ func (s *scanner) scanComment() *token {
 
 		s.consume(len(matches[0]))
 
-		return &token{tokComment, content, map[string]string{"Mode": mode, "Condition": content}}
+		return &token{tokComment, content, map[string]string{"Mode": mode, "Condition": condition}}
 	}
 
 	return nil
@@ -424,7 +439,7 @@ func (s *scanner) scanAttribute() *token {
 		s.consume(len(matches[0]))
 
 		if len(matches[3]) != 0 || matches[2] == "" {
-			return &token{tokAttribute, matches[1], map[string]string{"Content": matches[3], "Mode": "raw", "Condition": matches[5]}}
+			return &token{tokAttribute, matches[1], map[string]string{"Content": matches[3], "Mode": rawText, "Condition": matches[5]}}
 		}
 
 		return &token{tokAttribute, matches[1], map[string]string{"Content": matches[4], "Mode": "expression", "Condition": matches[5]}}
@@ -463,6 +478,7 @@ func (s *scanner) scanBlock() *token {
 func (s *scanner) scanTag() *token {
 	if matches := rtag.FindStringSubmatch(s.buffer); len(matches) != 0 {
 		s.consume(len(matches[0]))
+
 		return &token{tokTag, matches[1], nil}
 	}
 

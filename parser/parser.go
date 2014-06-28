@@ -226,7 +226,7 @@ func (p *Parser) parseBlock(parent Noder) *Block {
 			case tokClass:
 				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), "class", attr.Value, cond, true})
 			case tokAttribute:
-				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], cond, attr.Data["Mode"] == "raw"})
+				tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], cond, attr.Data["Mode"] == rawText})
 			}
 
 			continue
@@ -320,7 +320,7 @@ readmore:
 			panic("Conditional attributes must be placed in a block within a tag.")
 		}
 
-		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], "", attr.Data["Mode"] == "raw"})
+		tag.Attributes = append(tag.Attributes, Attribute{p.pos(), attr.Value, attr.Data["Content"], "", attr.Data["Mode"] == rawText})
 
 		goto readmore
 	case tokText:
@@ -339,7 +339,7 @@ readmore:
 func (p *Parser) parseText() *Text {
 	tok := p.expectToken(tokText)
 
-	node := newText(tok.Value, tok.Data["Mode"] == "raw")
+	node := newText(tok.Value, tok.Data["Mode"] == rawText)
 	node.SourcePosition = p.pos()
 	return node
 }
